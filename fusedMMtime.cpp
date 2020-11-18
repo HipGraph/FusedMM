@@ -540,8 +540,9 @@ int doChecking(IT NNZA, IT M, IT N, NT *C, NT *D, IT ldc)
  */
    EPS = Epsilon<NT>();
    // the idea is how many flop one element needs, should be max degree
-   // NOTE: avg degree will not do, since some rows may have more non-zero  
-   ErrBound = 4 * (NNZA) * EPS; /* considering upper bound for now*/ 
+   // NOTE: avg degree will not do, since some rows may have more non-zero 
+   // 2 for opposit direction of errors 
+   ErrBound = 2 * 4 * (NNZA) * EPS; /* considering upper bound for now*/ 
    cout << "--- EPS = " << EPS << " ErrBound = " << ErrBound << endl; 
    //cout << "--- ErrBound = " << ErrBound << " NNZ(A) = " << NNZA << " N = " << N  <<endl; 
    // row major! 
