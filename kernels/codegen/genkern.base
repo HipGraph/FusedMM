@@ -1,0 +1,572 @@
+@ROUT !
+#include<stdint.h>
+#ifdef PTTIME
+   #include<omp.h>
+#endif
+@ROUT sigmoid 
+#include<stdio.h>
+#include<math.h>
+@ROUT !
+@define pre @@(@pre)@
+@PRE S
+   @define typ @float@
+@PRE D
+   @define typ @double@
+@PRE !
+@PRE S
+#define SREAL 1
+@PRE D
+#define DREAL 1
+@PRE !
+/*#include"../include/@(pre)gmisc.h"*/
+#include"../../simd/simd.h"
+@define pre @@(@pre)@
+@SKIP ******** dim must be multiple of VLEN ***** 
+@ifdef ! DIM 
+   @iexp DIM 32
+@endifdef
+@PRE S  
+   @ifdef ! VLEN
+      @iexp VLEN 8 
+   @endifdef
+@PRE D
+   @ifdef ! VLEN
+      @iexp VLEN 4 
+   @endifdef
+@PRE ! 
+@iexp rdim @(VLEN) @(DIM) /
+@SKIP @print rdim= @(rdim) 
+@SKIP ***** test whether DIM is multiple of VLEN 
+@iexp kk @(rdim) @(VLEN) *
+@iif kk ! DIM
+   @abort "DIM=@(DIM) must be multiple of VLEN=@(VLEN)"
+@endiif
+#if VLEN != @(VLEN)
+   #error "ARCH VLEN doesn't match with generator's VLEN, see simd.h " 
+#endif
+@BEGINSKIP ====================================================================
+   NOTE: Adding new parameter 
+   DIM = factor for register blocking  
+   kruntime = 1, means the value of K is runtime. However, we have a assumption
+      than the value of K will greater than equal to DIM. Otherwise, we will 
+      generate kernel with DIM=K 
+@ENDSKIP =====================================================================
+@SKIP ---- by default kruntime is zero 
+@ifdef ! kruntime
+   @iexp kruntime 0
+@endifdef
+@SKIP **************** binary tree reduction *******************************
+@BEGINPROC BinReduce V_
+@define i @dum@
+@define j @dum@
+@define k @dum@
+@define i1 @dum@
+@define i2 @dum@
+@define nn @dum@
+         // binary tree reduction 
+@iexp j 1 
+@iexp i 1 
+@iwhile i < @(rdim)
+   @iexp j @(j) 2 *
+   @skip ---- nn = (N+j-1)/j  /* NOTE: the order of 1st op in postfix!! */
+         @iexp nn @(rdim) @(j) + -1 +
+         @iexp nn @(j) @(nn) /
+   @iexp k 0
+   @iwhile k < @(nn)
+      @SKIP ---- i1 = k * (i+i)
+      @iexp i1 @(i) @(i) + 
+      @iexp i1 @(i1) @(k) *
+      @iexp i2 @(i1) @(i) + 
+      @iif i2 < rdim
+         BCL_vadd(@(V_)@(i1), @(V_)@(i1), @(V_)@(i2));
+      @endiif
+      @iexp k @(k) 1 + 
+   @endiwhile
+   @iexp i @(i) 2 *
+@endiwhile
+
+@undef nn 
+@undef i2 
+@undef i1 
+@undef k 
+@undef j 
+@undef i 
+@endproc
+@SKIP **********************************************************************
+
+   @RBLK BACRB
+/*
+ * Register block  A,C and B(innermost loop) will require most registers, works 
+ * better on small value of k
+ */
+   @RBLK ACRB
+/*
+ * Register block both A and C, will require more registers, works better on 
+ * small value of k
+ */
+   @RBLK CRB
+/*
+ * Register block C: will require less registers, prioritize blocking of write 
+ * access than read only 
+ */
+   @RBLK !
+@ROUT tdist 
+/*extern INDEXTYPE MAXBOUND ;*/
+#ifdef BETA0
+void @(pre)gfusedMM_K@(DIM)_tdist_b0_csr
+#else /* BETA1 version */
+void @(pre)gfusedMM_K@(DIM)_tdist_b1_csr
+#endif
+@ROUT sigmoid
+/* external declaration of misc functions  */
+#if 0
+extern INDEXTYPE SM_BOUND ;
+extern INDEXTYPE SM_TABLE_SIZE ;
+extern INDEXTYPE SM_RESOLUTION ;
+extern void init_@(pre)SM_TABLE(@(typ) *sm_table);
+#endif
+#ifdef BETA0 
+void @(pre)gfusedMM_K@(DIM)_sigmoid_b0_csr
+#else /* BETA1 version */
+void @(pre)gfusedMM_K@(DIM)_sigmoid_b1_csr
+#endif
+@ROUT spmm 
+#ifdef BETA0 
+void @(pre)gfusedMM_K@(DIM)_spmm_b0_csr
+#else /* BETA1 version */
+void @(pre)gfusedMM_K@(DIM)_spmm_b1_csr
+#endif
+@ROUT gcn
+#ifdef BETA0 
+void @(pre)gfusedMM_K@(DIM)_gcn_b0_csr
+#else /* BETA1 version */
+void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
+#endif
+@ROUT ! 
+(
+   const char tkern,  	   // 's' 't' 'm'
+   const INDEXTYPE m,      // rows of dense A matrix 
+   const INDEXTYPE n,      // rows of dense B matrix
+   const INDEXTYPE k,      // cols of A or dimension. not used since K compile time   
+   const @(typ) alpha,     // const to scale, not use yet  
+   const INDEXTYPE nnz,    // nonzeros of the sparse matrix 
+   const INDEXTYPE rows,   // number of rows of the sparse matrix  
+   const INDEXTYPE cols,   // number of columns of the sparse matrix 
+   const @(typ) *val,       // value of  the sparse matrix 
+   const INDEXTYPE *indx,  // colids -> column indices of sparse matrix 
+   const INDEXTYPE *pntrb, // starting index for rowptr of csr of sparse matrix
+   const INDEXTYPE *pntre, // ending index for rowptr of csr of sparse matrix 
+   const @(typ) *a,        // Dense A matrix
+   const INDEXTYPE lda,    // leading dimension of a (col size since row-major)  
+   const @(typ) *b,        // Dense B matrix
+   const INDEXTYPE ldb,    // leading dimension of b (col size since row-major)  
+   const @(typ) beta,      // beta value, compile time not used  
+   @(typ) *c,              // Dense matrix c
+   const INDEXTYPE ldc     // leading dimension size of c (col size since roa-major) 
+)
+{
+@ROUT sigmoid
+   const @(typ) sm_bound = 5.0;
+   const int sm_table_size = 2048;
+   const @(typ) sm_resolution = sm_table_size/(2.0 * sm_bound);
+
+   @(typ) *sm_table = (@(typ)*)malloc(sizeof(@(typ))*sm_table_size);
+   if (!sm_table)
+   {
+      fprintf(stderr, 
+      "Not enough memory to allocate SM TABLE in kernel, SM_TABLE_SIZE = %d!!!\n", 
+              sm_table_size);
+      exit(0);
+   }
+#if 0
+   init_@(pre)SM_TABLE(sm_table);
+#else
+   { // init_sm_table 
+      for(INDEXTYPE i = 0; i < sm_table_size; i++)
+      {
+         @(typ) x;
+         x = 2.0 * sm_bound * i / sm_table_size - sm_bound;
+         sm_table[i] = 1.0 / (1 + exp(-x));
+      }
+   }
+#endif
+
+@ROUT tdist
+#if 0
+   const int maxbound = MAXBOUND;
+#else
+   const @(typ) maxbound = 5.0;
+#endif
+@ROUT ! 
+#if defined(PTTIME) && defined(LDB)
+   omp_set_num_threads(NTHREADS);
+   #pragma omp parallel
+   {
+      INDEXTYPE RowPerThd, tt;
+      INDEXTYPE i, rowb, rowe;
+      INDEXTYPE Mnnz = 0; /* non-zero count in M rows  */
+      INDEXTYPE deg, cumRow, curRow;
+      INDEXTYPE id = omp_get_thread_num();
+      INDEXTYPE nthreads = omp_get_num_threads(); 
+      
+      for (i=0; i < m; i++)
+         Mnnz += (pntre[i] - pntrb[i]); 
+      RowPerThd = Mnnz / nthreads; 
+      
+      curRow = cumRow = 0; 
+      tt = 1; 
+      rowe = -1;  /* init */
+      /* set rowstart for 1st thread */ 
+      if (id == 0) 
+         rowb = 0;
+      for (i=0; i < m; i++)
+      {
+         deg = pntre[i] - pntrb[i]; 
+         cumRow += deg;
+         curRow += deg;
+         if (curRow > RowPerThd)
+         {
+            if (tt == id)
+               rowb = i; 
+            else if (tt == id+1)
+               rowe = i; 
+            curRow = 0;
+            RowPerThd = (Mnnz - cumRow) / (nthreads - tt);
+            tt += 1; 
+         }
+      }
+      if (tt == id+1)
+         rowe = m; 
+
+      for (i=rowb; i < rowe; i++)
+#else /* not LBD or not PTTIME */
+   #ifdef PTTIME
+      #ifdef NTHREADS
+      omp_set_num_threads(NTHREADS);
+      #endif
+      #ifdef DYNAMIC 
+         #pragma omp parallel for schedule(dynamic)
+      #else
+         #pragma omp parallel for schedule(static)
+      #endif
+   #endif
+   for (INDEXTYPE i = 0; i < m; i++)
+#endif
+   {
+   @declare "      register VTYPE " y n ";"
+      @iexp i 0 
+      @iwhile i < @(rdim)
+   @RBLK  ACRB BACRB
+         Va@(i)
+   @RBLK !
+         Vc@(i)
+         @iexp i @(i) 1 +
+      @endiwhile
+   @enddeclare
+@iif kruntime ! 0
+      INDEXTYPE iindex = i * k; 
+@endiif
+@iif kruntime = 0
+      INDEXTYPE iindex = i * @(DIM); 
+@endiif
+      const @(typ) *Ai = a + iindex; 
+      @(typ) *Ci = c + iindex; 
+      VTYPE VMAXBOUND, VMINBOUND; 
+@ROUT tdist 
+@SKIP ************* tdist kruntime begins ************
+   @iif kruntime ! 0
+/*    
+ *    Assumption: K is not too big to overflow the stack, came from original 
+ *       unoptimized implementation
+ */
+      @(typ) T[k-@(DIM)];
+   @endiif
+@SKIP ************* tdist kruntime ends ************
+      BCL_vset1(VMAXBOUND, maxbound); 
+      BCL_vset1(VMINBOUND, -maxbound); 
+@ROUT sigmoid 
+      BCL_vset1(VMAXBOUND, sm_bound); 
+      BCL_vset1(VMINBOUND, -sm_bound); 
+@ROUT !
+#ifdef BETA0
+/*
+ * NO need to load C, just zerod Vector register    
+ */
+   @iexp i 0
+   @iwhile i < @(rdim)
+      BCL_vzero(Vc@(i)); 
+      @iexp i @(i) 1 +
+   @endiwhile
+
+#else /* beta1 */
+      // load Vc 
+   @iexp i 0
+   @iwhile i < @(rdim)
+      BCL_vldu(Vc@(i), Ci+VLEN*@(i)); 
+      @iexp i @(i) 1 +
+   @endiwhile
+#endif
+@ROUT tdist sigmoid   
+   @RBLK ACRB BACRB
+      // load Va 
+   @iexp i 0
+   @iwhile i < @(rdim)
+      BCL_vldu(Va@(i), Ai+VLEN*@(i)); 
+      @iexp i @(i) 1 +
+   @endiwhile
+
+   @RBLK ! 
+@ROUT ! 
+      for (INDEXTYPE j = pntrb[i]; j < pntre[i]; j++)
+      {
+@RBLK BACRB
+   @declare "         VTYPE " y n ";"
+      @iexp i 0 
+      @iwhile i < @(rdim)
+         Vb@(i)
+         @iexp i @(i) 1 +
+      @endiwhile
+   @enddeclare
+@RBLK ACRB
+         VTYPE Vb0;
+@RBLK CRB
+   @ROUT tdist sigmoid
+         VTYPE Va0, Vb0;
+   @ROUT spmm gcn
+         VTYPE Vb0;
+   @ROUT !
+@RBLK !
+@ROUT spmm 
+         VTYPE Va0; 
+         @(typ) a0 = val[j];
+@ROUT tdist 
+   @declare "         VTYPE " y n ";"
+      @iexp i 0 
+      @iwhile i < @(rdim)
+         Vd@(i)
+         @iexp i @(i) 1 +
+      @endiwhile
+      Vt
+   @enddeclare
+@ROUT sigmoid 
+         VTYPE Vd0, Vd1; 
+         @(typ) d1;
+@ROUT tdist sigmoid  
+   @declare "         VTYPE " y n ";"
+      @iexp i 0 
+      @iwhile i < @(rdim)
+         Vatt@(i)
+         @iexp i @(i) 1 +
+      @endiwhile
+   @enddeclare
+         @(typ) attrc = 0;
+@ROUT !
+         INDEXTYPE colidj = indx[j];
+@iif kruntime = 0
+         INDEXTYPE jindex = colidj*@(DIM);
+@endiif
+@iif kruntime ! 0
+         INDEXTYPE jindex = colidj*k;
+@endiif
+         const @(typ) *Bj = b + jindex; 
+@RBLK BACRB   
+         // load Vxj 
+   @iexp i 0
+   @iwhile i < @(rdim)
+         BCL_vldu(Vb@(i), Bj+VLEN*@(i)); 
+      @iexp i @(i) 1 +
+   @endiwhile
+@RBLK !
+@ROUT spmm
+         BCL_vset1(Va0, a0);
+         // spmm vmac 
+   @iexp i 0
+   @iwhile i < @(rdim)
+@RBLK BACRB 
+         BCL_vmac(Vc@(i), Va0, Vb@(i));
+@RBLK ACRB CRB
+         BCL_vldu(Vb0, Bj+VLEN*@(i)); 
+         BCL_vmac(Vc@(i), Va0, Vb0);
+@RBLK ! 
+      @iexp i @(i) 1 +
+   @endiwhile
+@SKIP ************* spmm kruntime begins ************
+@iif kruntime ! 0
+         // rolled loop for remaining computation
+         for (INDEXTYPE kk=@(DIM); kk < k; kk++)
+            Ci[kk] +=  a0 * Bj[kk];   
+@endiif
+@SKIP ************* spmm kruntime ends ************
+@ROUT gcn 
+   @iexp i 0
+   @iwhile i < @(rdim)
+@RBLK BACRB 
+         BCL_vadd(Vc@(i), Vc@(i), Vb@(i));
+@RBLK ACRB CRB
+         BCL_vldu(Vb0, Bj+VLEN*@(i)); 
+         BCL_vadd(Vc@(i), Vc@(i), Vb0);
+@RBLK ! 
+      @iexp i @(i) 1 +
+   @endiwhile
+@SKIP ************* spmm kruntime begins ************
+@iif kruntime ! 0
+         // rolled loop for remaining computation
+         for (INDEXTYPE kk=@(DIM); kk < k; kk++)
+            Ci[kk] +=  Bj[kk];   
+@endiif
+@ROUT tdist sigmoid 
+      // init Vatt  
+   @iexp i 0
+   @iwhile i < @(rdim)
+         BCL_vzero(Vatt@(i));
+      @iexp i @(i) 1 +
+   @endiwhile
+
+@ROUT tdist
+      // vsub
+   @iexp i 0
+   @iwhile i < @(rdim)
+   @RBLK BACRB 
+         BCL_vsub(Vd@(i), Va@(i), Vb@(i));
+   @RBLK ACRB 
+         BCL_vldu(Vb0, Bj+VLEN*@(i)); 
+         BCL_vsub(Vd@(i), Va@(i), Vb0);
+   @RBLK CRB
+         BCL_vldu(Va0, Ai+VLEN*@(i)); 
+         BCL_vldu(Vb0, Bj+VLEN*@(i)); 
+         BCL_vsub(Vd@(i), Va0, Vb0);
+   @RBLK !
+      @iexp i @(i) 1 +
+   @endiwhile
+      // vmac 
+   @iexp i 0
+   @iwhile i < @(rdim)
+         BCL_vmac(Vatt@(i), Vd@(i), Vd@(i));
+      @iexp i @(i) 1 +
+   @endiwhile
+@ROUT sigmoid
+      // vmac 
+   @iexp i 0
+   @iwhile i < @(rdim)
+@RBLK BACRB 
+         BCL_vmac(Vatt@(i), Va@(i), Vb@(i));
+@RBLK ACRB 
+         BCL_vldu(Vb0, Bj+VLEN*@(i)); 
+         BCL_vmac(Vatt@(i), Va@(i), Vb0);
+@RBLK CRB
+         BCL_vldu(Va0, Ai+VLEN*@(i)); 
+         BCL_vldu(Vb0, Bj+VLEN*@(i)); 
+         BCL_vmac(Vatt@(i), Va0, Vb0);
+@RBLK !
+      @iexp i @(i) 1 +
+   @endiwhile
+@ROUT tdist sigmoid
+@BEGINSKIP ***************************************************************
+            Binary tree reduction... number of operation is same as the 
+            number of nodes... but the dependent distance is increased
+@ENDSKIP ******************************************************************
+         @callproc BinReduce Vatt
+         BCL_vrsum1(attrc, Vatt0);
+@ROUT tdist
+@SKIP ************* tdist kruntime begins ************
+   @iif kruntime ! 0
+         for (INDEXTYPE kk = @(DIM); kk < k; kk++)
+         {
+            T[kk-@(DIM)] = Ai[kk] - Bj[kk];
+            attrc += T[kk-@(DIM)] * T[kk-@(DIM)];
+         }
+   @endiif
+@SKIP ************* tdist kruntime ends ************
+         BCL_vset1(Vatt0, attrc); // a = a
+         BCL_vset1(Vt, 1.0f); // t = 1.0
+         BCL_vadd(Vatt0, Vatt0, Vt); // a = 1.0 + a
+         BCL_vrcp(Vatt0, Vatt0); // a = 1/a
+         BCL_vset1(Vt, -2.0f); // t = -2
+         BCL_vmul(Vatt0, Vatt0, Vt); // a = -2 * a
+      // vmul 
+   @iexp i 0
+   @iwhile i < @(rdim)
+         BCL_vmul(Vd@(i), Vatt0, Vd@(i));
+      @iexp i @(i) 1 +
+   @endiwhile
+      // scaling of attrc 
+   @iexp i 0
+   @iwhile i < @(rdim)
+         BCL_vmax(Vd@(i), Vd@(i), VMINBOUND);
+      @iexp i @(i) 1 +
+   @endiwhile
+   @iexp i 0
+   @iwhile i < @(rdim)
+         BCL_vmin(Vd@(i), Vd@(i), VMAXBOUND);
+      @iexp i @(i) 1 +
+   @endiwhile
+      // vadd 
+   @iexp i 0
+   @iwhile i < @(rdim)
+         BCL_vadd(Vc@(i), Vc@(i), Vd@(i));
+      @iexp i @(i) 1 +
+   @endiwhile
+@SKIP ************* tdist kruntime begins ************
+   @iif kruntime ! 0
+         attrc = Vatt0[0]; 
+         for (INDEXTYPE kk = @(DIM); kk < k; kk++)
+         {
+            @(typ) t0; 
+            t0 = T[kk-@(DIM)] * attrc;
+            t0 = (t0 > maxbound) ? maxbound : t0;
+            t0 = (t0 < -maxbound) ? -maxbound : t0;
+            Ci[kk] += t0;
+         }
+   @endiif
+@SKIP ************* tdist kruntime ends ************
+@ROUT sigmoid
+@SKIP ************* sigmoid kruntime begins ************
+@iif kruntime ! 0
+         // rolled loop for remaining computation
+         for (INDEXTYPE kk=@(DIM); kk < k; kk++)
+            attrc += Ai[kk] * Bj[kk];   
+@endiif
+@SKIP ************* sigmoid kruntime ends ************
+         /* Calculating Sigmoid value */
+         { // fast_SM 
+            //d1 = fast_SM(attrc, sm_table);
+            if (attrc > sm_bound) d1 = 1.0;
+            else if (attrc < -sm_bound) d1 = 0.0;
+            else d1 = sm_table[(INDEXTYPE) ((attrc+sm_bound)*sm_resolution)];
+         }
+         //d1 = STEP * degi * (1.0 - d1);
+         d1 = (1.0 - d1);
+         BCL_vset1(Vd1, d1);
+         // vmac 
+   @iexp i 0
+   @iwhile i < @(rdim)
+   @RBLK BACRB 
+         BCL_vmac(Vc@(i), Vd1, Vb@(i));
+   @RBLK ACRB CRB
+         BCL_vldu(Vb0, Bj+VLEN*@(i)); 
+         BCL_vmac(Vc@(i), Vd1, Vb0);
+   @RBLK !
+      @iexp i @(i) 1 +
+   @endiwhile
+@SKIP ************* sigmoid kruntime begins ************
+@iif kruntime ! 0
+         // rolled loop for remaining C write 
+         for (INDEXTYPE kk=@(DIM); kk < k; kk++)
+            Ci[kk] += d1 * Bj[kk];   
+@endiif
+@SKIP ************* sigmoid kruntime ends ************
+@ROUT ! 
+      }
+   @iexp i 0
+   @iwhile i < @(rdim)
+      BCL_vstu(Ci + VLEN*@(i), Vc@(i)); 
+      @iexp i @(i) 1 +
+   @endiwhile
+   }
+#if defined(PTTIME) && defined(LDB)
+   }
+#endif
+@ROUT sigmoid
+   free(sm_table);
+@ROUT ! 
+}

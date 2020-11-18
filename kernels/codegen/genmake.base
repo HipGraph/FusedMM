@@ -1,0 +1,100 @@
+include ../Make.inc 
+@define pre @@(@pre)@
+@PRE S
+   @define typ @float@
+@PRE D
+   @define typ @double@
+@PRE !
+@define pre @@(@pre)@
+@SKIP ******** dim must be multiple of VLEN ***** 
+@ifdef ! DIM 
+   @iexp DIM 32
+@endifdef
+@PRE S  
+   @ifdef ! VLEN
+      @iexp VLEN 8 
+   @endifdef
+@PRE D
+   @ifdef ! VLEN
+      @iexp VLEN 4 
+   @endifdef
+@PRE ! 
+@iexp rdim @(VLEN) @(DIM) /
+@SKIP @print rdim= @(rdim) 
+@SKIP ***** test whether DIM is multiple of VLEN 
+@iexp kk @(rdim) @(VLEN) *
+@iif kk ! DIM
+   @abort "DIM=@(DIM) must be multiple of VLEN=@(VLEN)"
+@endiif 
+ibit=64
+IFLAGS = -DINDEXTYPE=int$(ibit)_t
+OMPFLAGS = -fopenmp
+PTFLAGS = $(OMPFLAGS) -DPTTIME -DLDB -DNTHREADS=@(nthds)
+SFLAGS = 
+INC=$(INCSdir)/kernels.h 
+#generated headers 
+@multidef frc tdist sigmoid spmm gcn
+@whiledef frc 
+@(frc)GINC=$(GENINCdir)/@(pre)gkernels_@(frc).h  
+@endwhile
+ARCHIVER = ar 
+ARFLAGS = r
+RANLIB = echo 
+SDMMlib = $(LIBdir)/@(pre)libgfusedMM_sequential.a 
+SDMMlib_pt = $(LIBdir)/@(pre)libgfusedMM_pt.a 
+
+all: @(pre)lib @(pre)lib_pt 
+
+@multidef pflg $(PTFLAGS) $(SFLAGS)
+@define pt @_pt@
+@define pt @@ 
+@whiledef pt
+   @declare "@(pre)obj@(pt) = " y n 
+$(BINdir)/@(pre)kernels@(pt).o
+   @multidef frc tdist sigmoid spmm gcn
+   @whiledef frc 
+      @iexp i @(VLEN)
+      @iwhile i { @(MDIM)
+         @multidef beta 1 0
+         @whiledef beta  
+$(GENSRCdir)/@(pre)gfusedMM_K@(i)_@(frc)_b@(beta)_csr@(pt).o 
+         @endwhile 
+         @iexp i @(i) @(VLEN) +
+      @endiwhile
+   @endwhile
+   @enddeclare 
+
+@(pre)lib@(pt): $(LIBdir)/@(pre)lib@(pt).grd 
+
+$(LIBdir)/@(pre)lib@(pt).grd: $(@(pre)obj@(pt))
+	$(ARCHIVER) $(ARFLAGS) $(SDMMlib@(pt)) $(@(pre)obj@(pt)) 
+	$(RANLIB) $(SDMMlib@(pt))  
+	touch $(LIBdir)/@(pre)lib@(pt).grd 
+
+$(BINdir)/@(pre)kernels@(pt).o : $(SRCdir)/kernels.c 
+	$(KCC) $(KCCFLAGS) $(ARCHFLAGS) $(IFLAGS) @(pflg) -D@up@(pre)REAL \
+        -I$(GENINCdir) -o $@ -c $(SRCdir)/kernels.c 
+
+   @multidef frc tdist sigmoid spmm gcn
+   @whiledef frc
+      @iexp i @(VLEN)
+      @iwhile i { @(MDIM)
+      @multidef beta 1 0
+      @whiledef beta 
+$(GENSRCdir)/@(pre)gfusedMM_K@(i)_@(frc)_b@(beta)_csr@(pt).o : $(@(frc)GINC) \
+   $(GENSRCdir)/@(pre)gfusedMM_K@(i)_@(frc)_csr.c
+	$(KCC) $(KCCFLAGS) $(ARCHFLAGS) $(IFLAGS) @(pflg) -D@up@(pre)REAL \
+        -DBETA@(beta) -I$(SIMDdir) -o $@ -c $(GENSRCdir)/@(pre)gfusedMM_K@(i)_@(frc)_csr.c
+      @endwhile
+         @iexp i @(i) @(VLEN) +
+      @endiwhile
+   @endwhile
+
+   @undef pflg 
+@endwhile
+
+
+clean : 
+	rm -f $(GENSRCdir)/@(pre)*.o $(LIBdir)/@(pre)*.a  $(LIBdir)/@(pre)*.grd 
+
+

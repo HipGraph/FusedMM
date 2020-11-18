@@ -1,0 +1,144 @@
+@ROUT !
+@define pre @@(@pre)@
+@PRE S
+   @define typ @float@
+@PRE D
+   @define typ @double@
+@PRE !
+@define pre @@(@pre)@
+@ROUT misc 
+#ifndef DG_MISC_H
+#define DG_MISC_H
+
+#include<math.h>
+
+#if 1
+#ifndef MAXBOUND 
+   #define MAXBOUND 5.0 
+#endif 
+#ifndef SM_BOUND 
+   #define SM_BOUND 5.0 
+#endif 
+#ifndef  SM_TABLE_SIZE
+   #define SM_TABLE_SIZE 2048
+#endif
+#ifndef SM_RESOLUTION 
+   #define SM_RESOLUTION SM_TABLE_SIZE/(2.0 * SM_BOUND)
+#endif
+#else 
+   const @(typ) MAXBOUND = 5.0;
+   const @(typ) SM_BOUND = 5.0;
+   const int SM_TABLE_SIZE = 2048;
+   const @(typ) SM_RESOLUTION = SM_TABLE_SIZE/(2.0 * SM_BOUND);
+
+#endif
+/* scalar scale function */
+inline @(typ) @(pre)scale_SM(@(typ) val)
+{
+   @(typ) sval;
+   /* hopefully compiler will figure out and replace it max min instruction */
+   sval = (val > SM_BOUND) ? SM_BOUND : val;
+   sval = (val < -SM_BOUND) ? -SM_BOUND : val;
+   return(sval); 
+}
+/* not even parallel ?? */
+void init_@(pre)SM_TABLE(@(typ) *sm_table)
+{
+   @(typ) x;
+   for(INDEXTYPE i = 0; i < SM_TABLE_SIZE; i++)
+   {
+      x = 2.0 * SM_BOUND * i / SM_TABLE_SIZE - SM_BOUND;
+      sm_table[i] = 1.0 / (1 + exp(-x));
+   }
+}
+@(typ) fast_SM(@(typ) v, @(typ) *sm_table)
+{
+   if (v > SM_BOUND) return 1.0;
+   else if (v < -SM_BOUND) return 0.0;
+   return sm_table[(INDEXTYPE)((v + SM_BOUND) * SM_RESOLUTION)];
+}
+
+#endif
+@ROUT ghead 
+#ifndef DG_@up@(frc)_KERNEL_H
+#define DG_@up@(frc)_KERNEL_H
+@SKIP ******** dim must be multiple of VLEN ***** 
+@ifdef ! MDIM 
+   @iexp MDIM 128
+@endifdef
+@PRE S  
+   @ifdef ! VLEN
+      @iexp VLEN 8 
+   @endifdef
+@PRE D
+   @ifdef ! VLEN
+      @iexp VLEN 4 
+   @endifdef
+@PRE ! 
+@iexp rdim @(VLEN) @(MDIM) /
+@SKIP @print rdim= @(rdim) 
+@SKIP ***** test whether MDIM is multiple of VLEN 
+@iexp kk @(rdim) @(VLEN) *
+@iif kk ! MDIM
+   @abort "DIM=@(DIM) must be multiple of VLEN=@(VLEN)"
+@endiif 
+@ifdef ! kruntime 
+   @iexp kruntime 0
+@endifdef
+@ifdef ! bestK 
+   @iexp bestK 64
+@endifdef
+#define GVLEN @(VLEN) /* generated kernels VLEN, check with simd.h */
+#define MAXDIM_@up@(frc) @(MDIM) /* max value of dimension (k) */
+#define KRUNTIME_@up@(frc) @(kruntime)
+/*
+ * NOTE: put the best K value after tuning here, needed when kruntime = 1 
+ */
+#define BESTK_@up@(frc) @(bestK)
+/*
+ * function pointer type for generated kernels 
+ */
+@multidef beta b1 b0
+@whiledef beta 
+/*
+ * Kernels for beta, @(beta)
+ */
+
+typedef void (*kern_@(pre)gfusedMM_@(frc)_@(beta)_t) ( const char transa, const INDEXTYPE m, 
+      const INDEXTYPE n, const INDEXTYPE k,const @(typ) alpha, const INDEXTYPE nnz, 
+      const INDEXTYPE rows, const INDEXTYPE cols, const @(typ) *val, const INDEXTYPE *indx, 
+      const INDEXTYPE *pntrb, const INDEXTYPE *pntre, const @(typ) *A, 
+      const INDEXTYPE lda, const @(typ) *B, const INDEXTYPE ldb, 
+      const @(typ) beta, @(typ) *C, const INDEXTYPE ldc);
+/*
+ * FIXME: add a check for VLEN in generator with simd.h 
+ * VLEN = @(VLEN), MAX DIM(K) = @(MDIM)
+ */
+@iexp i @(VLEN) 
+@iwhile i { @(MDIM) 
+void @(pre)gfusedMM_K@(i)_@(frc)_@(beta)_csr (const char transa, const INDEXTYPE m, const INDEXTYPE n, 
+      const INDEXTYPE k,const @(typ) alpha, const INDEXTYPE nnz, 
+      const INDEXTYPE rows, const INDEXTYPE cols, const @(typ) *val, const INDEXTYPE *indx, 
+      const INDEXTYPE *pntrb, const INDEXTYPE *pntre, const @(typ) *A, 
+      const INDEXTYPE lda, const @(typ) *B, const INDEXTYPE ldb, 
+      const @(typ) beta, @(typ) *C, const INDEXTYPE ldc);
+   @iexp i @(i) @(VLEN) + 
+@endiwhile
+/*
+ * keep a global array of function pointer to select the correct one 
+ */
+   kern_@(pre)gfusedMM_@(frc)_@(beta)_t @(pre)genkernels_@(frc)_@(beta)[@(rdim)] = 
+   {
+@iexp j @(VLEN)
+@iexp kk @(rdim) -1 +
+@iexp i 0
+@iwhile i < @(kk)
+      @(pre)gfusedMM_K@(j)_@(frc)_@(beta)_csr,      /*  @(i) */
+   @iexp j @(j) @(VLEN) + 
+   @iexp i @(i) 1 + 
+@endiwhile
+      @(pre)gfusedMM_K@(MDIM)_@(frc)_@(beta)_csr      /*  @(i) */
+   };
+@endwhile
+#endif
+@ROUT ! 

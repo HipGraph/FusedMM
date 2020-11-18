@@ -1,0 +1,11 @@
+This is the README file for the library generator. 
+Use the script file rungen.sh to generate any library.
+
+It has two phases: 
+   1. Tuning phase: When you want to find best K (dim) for register blocking, 
+      use k as compile time or kruntime=0. Based on the value SDIM (starting dimension), EDIM (ending
+      dimension) and VLEN (SIMD width), it will generate kernels, header and 
+      makefile for compile-time K (without any rolled loop). 
+   2. Kruntime: To make it work for all K (dim), use bestK value (found from 
+      tuning) and use kruntime=1 to create the library. It will generate unrolled
+      kernels for K < bestK and partial unrolled (upto bestK) for all K > bestK
