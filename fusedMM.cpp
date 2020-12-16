@@ -497,6 +497,8 @@ int fusedMM_csr
       INDEXTYPE deg, cumRow, curRow;
       INDEXTYPE id = omp_get_thread_num();
       INDEXTYPE nthreads = omp_get_num_threads(); 
+      // ASSUMPTION: dimension k is small enough to fit in stack, 
+      //    need to use some efficient allocator otherwise  
       VALUETYPE T[k]; /* temporary space to hold result of vector compute */
       
       for (i=0; i < m; i++)
@@ -534,10 +536,18 @@ int fusedMM_csr
       #ifdef NTHREADS
       omp_set_num_threads(NTHREADS);
       #endif
-      #ifdef DYNAMIC 
-         #pragma omp parallel for schedule(dynamic) reduction(+:status)  
+      #ifdef DYNAMIC
+         #ifdef DEBUG 
+            #pragma omp parallel for schedule(dynamic) reduction(+:status)  
+         #else
+            #pragma omp parallel for schedule(dynamic)   
+         #endif
       #else
-         #pragma omp parallel for schedule(static) reduction(+:status)  
+         #ifdef DEBUG 
+            #pragma omp parallel for schedule(static) reduction(+:status)  
+         #else
+            #pragma omp parallel for schedule(static)   
+         #endif
       #endif
    #endif
       for (INDEXTYPE i = 0; i < m; i++)
@@ -548,6 +558,8 @@ int fusedMM_csr
          //VALUETYPE *Zi = z + i * ldz; 
          VALUETYPE *O = z + i * ldz; 
 #ifndef LOAD_BALANCE
+         // ASSUMPTION: dimension k is small enough to fit in stack, 
+         //    need to use some efficient allocator otherwise  
          VALUETYPE T[k]; /* temporary space to hold result of vector compute */
 #endif
          for (INDEXTYPE j=pntrb[i]; j < pntre[i]; j++)
@@ -558,12 +570,26 @@ int fusedMM_csr
             INDEXTYPE cid = indx[j];
             //const VALUETYPE *yj = y + cid * ldy; 
             const VALUETYPE *rhs = y + cid * ldy; 
-
-            status += VOP_FUNC(k,lhs,k,rhs,k,T);
-            status += ROP_FUNC(k,lhs,k,cT,scal);
-            status += SOP_FUNC(scal, out);
-            status += VSC_FUNC(k,T,out, k,T);
-            status += AOP_FUNC(k, T, k, O);
+         #ifdef DEBUG
+            status += 
+         #endif
+               VOP_FUNC(k,lhs,k,rhs,k,T);
+         #ifdef DEBUG
+            status += 
+         #endif
+               ROP_FUNC(k,lhs,k,cT,scal);
+         #ifdef DEBUG
+            status += 
+         #endif
+               SOP_FUNC(scal, out);
+         #ifdef DEBUG
+            status += 
+         #endif
+               VSC_FUNC(k,T,out, k,T);
+         #ifdef DEBUG
+            status += 
+         #endif
+               AOP_FUNC(k, T, k, O);
          }
       }
 #if defined(PTTIME) && defined(LOAD_BALANCE)
