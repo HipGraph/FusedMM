@@ -175,7 +175,10 @@ chmod u+x $topdir/rungen.sh
 #
 sed -i "s/pre=.*/pre=s/" $topdir/../Makefile
 sed -i "s/vlen=.*/vlen=$svlen/" $topdir/../Makefile
-nth=`grep 'cpu cores' /proc/cpuinfo | uniq`
-sed -i "s/NTHREADS=.*/NTHREADS=$nth/" $topdir/../Makefile
+#
+#  update number of threads as the number of cores 
+#
+nth=`grep 'cpu cores' /proc/cpuinfo | uniq | cut -d ':' -f 2 -s`
+sed -i "s/NTHREADS=48/NTHREADS=$nth/" $topdir/../Makefile
 
 echo "Done configure"
