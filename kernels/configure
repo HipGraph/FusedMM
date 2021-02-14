@@ -175,6 +175,7 @@ chmod u+x $topdir/rungen.sh
 #
 sed -i "s/pre=.*/pre=s/" $topdir/../Makefile
 sed -i "s/vlen=.*/vlen=$svlen/" $topdir/../Makefile
-
+nth=`grep 'cpu cores' /proc/cpuinfo | uniq`
+sed -i "s/NTHREADS=.*/NTHREADS=$nth/" $topdir/../Makefile
 
 echo "Done configure"
