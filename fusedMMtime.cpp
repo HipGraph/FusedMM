@@ -8,7 +8,7 @@
 #include "commonutility.h"
 #include "utility.h"
 
-#include"kernels/include/kernels.h"
+//#include"kernels/include/kernels.h"
 /*
  * select data type in Makefile
  *    pre=[s,d]

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <omp.h>
 
+#include"kernels/include/kernels.h"
 #ifdef DREAL
    #define VALUETYPE double
 #else
@@ -461,6 +462,31 @@ int fusedMM_csr
 )
 {
    int status = 0;
+/* ============================================================================
+ * call Predefined optimized kernel
+ * ===========================================================================*/
+/*
+ * check for sigmoid kernel 
+ * FIXME: update gsigmoid to call user define SOP 
+ */
+   if ( GET_VOP_FLAG(imessage) == VOP_COPY_RHS 
+         && GET_ROP_FLAG(imessage) == ROP_DOT 
+         && GET_SOP_FLAG(imessage) == SOP_UDEF 
+         && GET_VSC_FLAG(imessage) == VSC_MUL 
+         && GET_AOP_FLAG(imessage) == AOP_ADD)
+   {
+      //std::cout << "calling optimized sigmoid" << std::endl;
+      #ifdef DREAL 
+      dgfusedMM_csr('s', m, n, k, alpha, nnz, rows, cols, val, 
+              indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
+      #else
+      sgfusedMM_csr('s', m, n, k, alpha, nnz, rows, cols, val, 
+              indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
+      #endif
+      return status;
+   }
+
+/* ===========================================================================*/
 /*
  * Select appropriate operation based on the message
  */
