@@ -21,6 +21,13 @@
    #define VALUETYPE float
 #endif
 
+/*
+ * Added header file for general fusedMM 
+ */
+
+#include "fusedMM.h"
+
+
 #ifdef INT64
    #ifndef INT64_MAX 
       #error "64bit integer not supported in this architecture!!!"
@@ -115,38 +122,40 @@ typedef void (*csc_mm_t)
 );
 
 /* ============================================================================
- *    sample kernels 
+ *    sample trusted kernels 
+ *    Trusted kernels from gl/src/array/cpu/sddmmspmm 
  * 
  *============================================================================*/
 
-/*
- * Trusted kernels from gl/src/array/cpu/sddmmspmm 
- */
 #define SM_TABLE_SIZE 2048
 #define SM_BOUND 5.0
 #define SM_RESOLUTION SM_TABLE_SIZE/(2.0 * SM_BOUND)
 
 template <typename DType>
-DType scale(DType v){
-	if(v > SM_BOUND) return SM_BOUND;
-        else if(v < -SM_BOUND) return -SM_BOUND;
-        return v;
+DType scale(DType v)
+{
+   if(v > SM_BOUND) return SM_BOUND;
+   else if(v < -SM_BOUND) return -SM_BOUND;
+   return v;
 }
 
 template <typename DType>
-DType fast_SM(DType v, DType *sm_table){
-        if(v > SM_BOUND) return 1.0;
-        else if(v < -SM_BOUND) return 0.0;
-        return sm_table[(int)((v + SM_BOUND) * SM_RESOLUTION)];
+DType fast_SM(DType v, DType *sm_table)
+{
+   if(v > SM_BOUND) return 1.0;
+   else if(v < -SM_BOUND) return 0.0;
+   return sm_table[(int)((v + SM_BOUND) * SM_RESOLUTION)];
 }
 
 template <typename IdType, typename DType>
-void init_SM_TABLE(DType *sm_table){
-        DType x;
-        for(IdType i = 0; i < SM_TABLE_SIZE; i++){
-                x = 2.0 * SM_BOUND * i / SM_TABLE_SIZE - SM_BOUND;
-                sm_table[i] = 1.0 / (1 + exp(-x));
-        }
+void init_SM_TABLE(DType *sm_table)
+{
+   DType x;
+   for(IdType i = 0; i < SM_TABLE_SIZE; i++)
+   {
+      x = 2.0 * SM_BOUND * i / SM_TABLE_SIZE - SM_BOUND;
+      sm_table[i] = 1.0 / (1 + exp(-x));
+   }
 }
 
 template <typename IdType, typename DType>
@@ -164,60 +173,113 @@ void SDDMMSPMMCsrTdist
 #ifdef PTTIME 
 #pragma omp parallel for
 #endif
-for (IdType rid = 0; rid < N; ++rid) {
-        const IdType row_start = indptr[rid], row_end = indptr[rid + 1];
-        const IdType iindex = rid * dim;
-	DType T[dim];
-        for (IdType j = row_start; j < row_end; ++j){
-                const IdType cid = indices[j];
-                const IdType jindex = cid * dim;
-                DType attrc = 0;
-                for (int64_t k = 0; k < dim; ++k) {
-			T[k] = X[iindex + k] - Y[jindex + k];
-                        attrc += T[k] * T[k];
-                }
-                DType d1 = -2.0 / (1.0 + attrc);
-                for (int64_t k = 0; k < dim; ++k) {
-			T[k] = scale<DType>(T[k] * d1);
-                        O[iindex+k] = O[iindex+k]  + T[k];
-                }
-        }
-}
-
+   for (IdType rid = 0; rid < N; ++rid) 
+   {
+      const IdType row_start = indptr[rid], row_end = indptr[rid + 1];
+      const IdType iindex = rid * dim;
+      DType T[dim];
+      for (IdType j = row_start; j < row_end; ++j)
+      {
+         const IdType cid = indices[j];
+         const IdType jindex = cid * dim;
+         DType attrc = 0;
+         for (int64_t k = 0; k < dim; ++k) 
+         {
+            T[k] = X[iindex + k] - Y[jindex + k];
+            attrc += T[k] * T[k];
+         }
+         DType d1 = -2.0 / (1.0 + attrc);
+         for (int64_t k = 0; k < dim; ++k) 
+         {
+            T[k] = scale<DType>(T[k] * d1);
+            O[iindex+k] = O[iindex+k]  + T[k];
+         }
+      }
+   }
 }
 
 template <typename IdType, typename DType>
-void SDDMMSPMMCsrSigmoid(const IdType *indptr, const IdType *indices, const IdType *edges, 
-		const DType *X, const DType *Y, DType *O, const IdType N, const int64_t dim) {
+void SDDMMSPMMCsrSigmoid
+(
+   const IdType *indptr, 
+   const IdType *indices, 
+   const IdType *edges, 
+   const DType *X, 
+   const DType *Y, 
+   DType *O, 
+   const IdType N, 
+   const int64_t dim
+   ) 
+{
 
-DType *sm_table;
-sm_table = static_cast<DType *> (::operator new (sizeof(DType[SM_TABLE_SIZE])));
-init_SM_TABLE<IdType, DType>(sm_table);
+   DType *sm_table;
+   sm_table = static_cast<DType *> (::operator new (sizeof(DType[SM_TABLE_SIZE])));
+   init_SM_TABLE<IdType, DType>(sm_table);
+   //for(IdType i = 0; i < SM_TABLE_SIZE; i++) cout << sm_table[i] << " "; cout << endl;
+#ifdef PTTIME 
+#pragma omp parallel for
+#endif
+   for (IdType rid = 0; rid < N; ++rid)
+   {
+      const IdType row_start = indptr[rid], row_end = indptr[rid + 1];
+      const IdType iindex = rid * dim;
+      for (IdType j = row_start; j < row_end; ++j)
+      {
+         const IdType cid = indices[j];
+         const IdType jindex = cid * dim;
+         DType attrc = 0;
+         for (int64_t k = 0; k < dim; ++k) 
+         {
+            attrc += X[iindex + k] * Y[jindex + k];
+         }
+         //DType d1 = 1.0 / (1.0 + exp(-attrc));
+         DType d1 = fast_SM<DType>(attrc, sm_table);
+	 //printf("");
+	 for (int64_t k = 0; k < dim; ++k) 
+         {
+            O[iindex+k] = O[iindex+k]  + (1.0 - d1) * Y[jindex + k];
+         }
+      }
+   }		
+}
 
-//for(IdType i = 0; i < SM_TABLE_SIZE; i++) cout << sm_table[i] << " "; cout << endl;
+template <typename IdType, typename DType>
+void TrustedFR
+(  const IdType *indptr,
+   const IdType *indices,
+   const IdType *edges,
+   const DType *X,
+   const DType *Y,
+   DType *O,
+   const IdType N,
+   const int64_t dim)
+{
 
 #ifdef PTTIME 
 #pragma omp parallel for
 #endif
-for (IdType rid = 0; rid < N; ++rid){
-        const IdType row_start = indptr[rid], row_end = indptr[rid + 1];
-        const IdType iindex = rid * dim;
-	for (IdType j = row_start; j < row_end; ++j){
-		const IdType cid = indices[j];
-                const IdType jindex = cid * dim;
-                DType attrc = 0;
-                for (int64_t k = 0; k < dim; ++k) {
-                        attrc += X[iindex + k] * Y[jindex + k];
-                }
-                //DType d1 = 1.0 / (1.0 + exp(-attrc));
-                DType d1 = fast_SM<DType>(attrc, sm_table);
-		//printf("");
-		for (int64_t k = 0; k < dim; ++k) {
-                        O[iindex+k] = O[iindex+k]  + (1.0 - d1) * Y[jindex + k];
-                }
-        }
-}		
-
+   for (IdType rid = 0; rid < N; ++rid) 
+   {
+      const IdType row_start = indptr[rid], row_end = indptr[rid + 1];
+      const IdType iindex = rid * dim;
+      DType T[dim];
+      for (IdType j = row_start; j < row_end; ++j)
+      {
+         const IdType cid = indices[j];
+         const IdType jindex = cid * dim;
+         DType attrc = 0;
+         for (int64_t k = 0; k < dim; ++k) 
+         {
+            T[k] = Y[jindex + k] - X[iindex + k];
+            attrc += T[k] * T[k];
+         }
+         DType d1 = 1.0 + 1.0 / attrc;
+         for (int64_t k = 0; k < dim; ++k) 
+         {
+            O[iindex+k] = O[iindex+k]  + d1 * T[k];
+         }
+      }
+   }
 }
 
 void truested_spmm_csr 
@@ -488,6 +550,9 @@ void mytrusted_csr
          truested_gcn_csr(tkern, m, n, k, alpha, nnz, rows, cols, val, indx, 
                pntrb, pntre, a, lda, b, ldb, beta, c, ldc);
          break;
+      case 'f' :
+	 TrustedFR<INDEXTYPE, VALUETYPE> (pntrb, indx, NULL, a, b, c, m, k);
+	 break;
 #else  /* MKL only supports SPMM */
       case 'm' : // MKL spmm
          // no 'a' matrix, only: S(sparse), B, C
@@ -501,6 +566,174 @@ void mytrusted_csr
          exit(1);
    }
 }
+
+/*=============================================================================
+ * Test kernels: 
+ *    We will always call fusedMM, analyzing patterns it may call optimized 
+ *    kernel from there
+ *
+ *============================================================================*/
+/* **********************************************************************
+ * Accessory funciton to compute sigmoid 
+ */
+/* scalar scale function */
+VALUETYPE *SM_TABLE;
+inline VALUETYPE uscale_SM(VALUETYPE val)
+{
+   VALUETYPE sval;
+   /* hopefully compiler will figure out and replace it max min instruction */
+   sval = (val > SM_BOUND) ? SM_BOUND : val;
+   sval = (val < -SM_BOUND) ? -SM_BOUND : val;
+   return(sval); 
+}
+/* not even parallel ?? */
+void uinit_SM_TABLE()
+{
+   VALUETYPE x;
+   SM_TABLE = (VALUETYPE*)malloc(SM_TABLE_SIZE*sizeof(VALUETYPE));
+   assert(SM_TABLE);
+   for(INDEXTYPE i = 0; i < SM_TABLE_SIZE; i++)
+   {
+      x = 2.0 * SM_BOUND * i / SM_TABLE_SIZE - SM_BOUND;
+      SM_TABLE[i] = 1.0 / (1 + exp(-x));
+   }
+}
+
+VALUETYPE ufast_SM(VALUETYPE v)
+{
+   if (v > SM_BOUND) return 1.0;
+   else if (v < -SM_BOUND) return 0.0;
+   return SM_TABLE[(INDEXTYPE)((v + SM_BOUND) * SM_RESOLUTION)];
+}
+
+/*
+ * NOTE: implementation of User defined functions differ from different model.
+ * We need to enable disable it compile time!!!!
+ * FIXME: How to select them runtime 
+ */
+#define ENABLE_SIGMOID 1  /* enable sigmoid */
+
+#ifdef ENABLE_SIGMOID 
+// USER DEFINED FUNCTION for SOP with Sigmoid calc 
+int  SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
+{
+   out = 1.0 - ufast_SM(val);
+   return FUSEDMM_SUCCESS_RETURN;
+}
+#elif defined(ENABLE_FR)
+// SOP_UDEF for FR model
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
+{
+   out = 1.0 + 1.0 / val;
+   return FUSEDMM_SUCCESS_RETURN;
+}
+#elif defined(ENABLE_TDIST)
+// SOP_UDEF for t-distribution  model
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
+{  
+   out = 2.0 / (1.0 + val);
+   return FUSEDMM_SUCCESS_RETURN;
+}
+#elif defined(ENABLE_LL)
+// SOP_UDEF for LL model
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
+{
+   out = log2(1 + sqrt(val));;
+   return FUSEDMM_SUCCESS_RETURN;
+}
+#elif defined(ENABLE_FA)
+// SOP_UDEF for FA model
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
+{
+   out = sqrt(val) + 1.0 / val;;
+   return FUSEDMM_SUCCESS_RETURN;
+} 
+#endif
+/*
+ * User defined function for ROP to perform self-DOT product
+ */
+
+int ROP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
+      const VALUETYPE *rhs, VALUETYPE &out)
+{
+   out = 0.0;
+   for (INDEXTYPE i = 0; i < rhs_dim; i += 1)
+   {
+      out += rhs[i] * rhs[i];
+   }  
+   return FUSEDMM_SUCCESS_RETURN;
+}
+
+int VSC_UDEF_FUNC(INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE scal,
+      INDEXTYPE out_dim, VALUETYPE *out)
+{
+   for (INDEXTYPE i = 0; i < rhs_dim; i += 1)
+   {
+      out[i] = scale(scal * rhs[i]);
+   }
+   return FUSEDMM_SUCCESS_RETURN;
+}
+
+   
+void mytest_csr
+(
+   const char tkern,  // 'N' 'T'
+   const INDEXTYPE m, 
+   const INDEXTYPE n, 
+   const INDEXTYPE k, 
+   const VALUETYPE alpha, 
+   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
+   const INDEXTYPE rows,  // number of rows... not needed 
+   const INDEXTYPE cols,  // number of columns 
+   const VALUETYPE *val,   // NNZ value  
+   const INDEXTYPE *indx,  // colids -> column indices 
+   const INDEXTYPE *pntrb, // starting index for rowptr
+   const INDEXTYPE *pntre, // ending index for rowptr
+   const VALUETYPE *a,     // Dense B matrix
+   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
+   const VALUETYPE *b,     // Dense B matrix
+   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
+   const VALUETYPE beta,  // beta value 
+   VALUETYPE *c,           // Dense matrix c
+   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+)
+{
+   int32_t imsg; 
+   switch(tkern)
+   {
+      case 't' : // t-dist 
+	 imsg = VOP_SUB | ROP_UDEF | SOP_UDEF | VSC_UDEF | AOP_ADD;
+	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
+               pntre, a, lda, b, ldb, beta, c, ldc);
+         break;
+      case 'f':
+         //printf("Calling FR model!");
+	 imsg = VOP_SUB | ROP_UDEF | SOP_UDEF | VSC_MUL | AOP_ADD;
+	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
+               pntre, a, lda, b, ldb, beta, c, ldc);
+	 break;
+      case 's' : // sigmoid
+         uinit_SM_TABLE();
+         //printf("Calling fused kernel\n");
+         //imsg = VOP_COPY_LHS | ROP_DOT | SOP_UDEF | VSC_MUL | AOP_ADD;
+         imsg = VOP_COPY_RHS | ROP_DOT | SOP_UDEF | VSC_MUL | AOP_ADD;
+         
+         fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb, 
+               pntre, a, lda, b, ldb, beta, c, ldc);
+         
+         break;
+      case 'm' : // spmm
+         imsg = VOP_COPY_RHS | ROP_NOOP | SOP_COPY | VSC_MUL | AOP_ADD;
+         
+         fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb, 
+               pntre, a, lda, b, ldb, beta, c, ldc);
+         break;
+      default:
+         printf("unknown trusted kernel\n");
+         break;
+   }
+}
+
 
 /*=============================================================================
  *          Tester framework 
@@ -1020,7 +1253,7 @@ vector<double> callTimerTest_Acsr
    {
       results.push_back(0.0); // no inspection phase 
    }
-  
+#if 0  
 #ifdef DREAL
    dgfusedMM_csr(tkern, M, N, K, alpha, nnz, rows, cols, values, 
               colids, rowptr, rowptr+1, a, lda, b, ldb, beta, c, ldc);   
@@ -1028,9 +1261,14 @@ vector<double> callTimerTest_Acsr
    sgfusedMM_csr(tkern, M, N, K, alpha, nnz, rows, cols, values, 
               colids, rowptr, rowptr+1, a, lda, b, ldb, beta, c, ldc);   
 #endif
+#else  // calling general fusedmm 
+   mytest_csr(tkern, M, N, K, alpha, nnz, rows, cols, values, 
+              colids, rowptr, rowptr+1, a, lda, b, ldb, beta, c, ldc);   
+#endif
    start = omp_get_wtime();
    for (int i=0; i < nrep; i++)
    {
+#if 0
    #ifdef DREAL
       dgfusedMM_csr(tkern, M, N, K, alpha, nnz, rows, cols, values, 
                  colids, rowptr, rowptr+1, a, lda, b, ldb, beta, c, ldc);   
@@ -1038,6 +1276,10 @@ vector<double> callTimerTest_Acsr
       sgfusedMM_csr(tkern, M, N, K, alpha, nnz, rows, cols, values, 
                  colids, rowptr, rowptr+1, a, lda, b, ldb, beta, c, ldc);   
    #endif
+#else  // calling general fusedmm 
+      mytest_csr(tkern, M, N, K, alpha, nnz, rows, cols, values, 
+                 colids, rowptr, rowptr+1, a, lda, b, ldb, beta, c, ldc);   
+#endif
    }
    end = omp_get_wtime();
    results.push_back((end-start)/((double)nrep)); // execution time 
@@ -1080,19 +1322,11 @@ vector<double> callCFTimerTest_Acsr
    {
       results.push_back(0.0); // no inspection phase 
    }
-#if 0 
-#ifdef DREAL
-   dgfusedMM_csr(tkern, M, N, K, alpha, nnz, rows, cols, values, 
-              colids, rowptr, rowptr+1, a, lda, b, ldb, beta, c, ldc);   
-#else
-   sgfusedMM_csr(tkern, M, N, K, alpha, nnz, rows, cols, values, 
-              colids, rowptr, rowptr+1, a, lda, b, ldb, beta, c, ldc);   
-#endif
-#endif
    start = omp_get_wtime();
    for (int i=0; i < nrep; i++)
    {
       nds--; nis--; 
+#if 0
    #ifdef DREAL
       dgfusedMM_csr(tkern, M, N, K, alpha, nnz, rows, cols, 
             values+nds*wdsz, colids+nis*wisz, rowptr+nis*wisz, 
@@ -1104,6 +1338,12 @@ vector<double> callCFTimerTest_Acsr
             rowptr+nis*wisz+1, a+nds*wdsz, lda, b+nds*wdsz, ldb, beta, 
             c+nds*wdsz, ldc);   
    #endif
+#else  // calling general fusedmm 
+      mytest_csr(tkern, M, N, K, alpha, nnz, rows, cols, 
+            values+nds*wdsz, colids+nis*wisz, rowptr+nis*wisz, 
+            rowptr+nis*wisz+1, a+nds*wdsz, lda, b+nds*wdsz, ldb, beta, 
+            c+nds*wdsz, ldc);   
+#endif
       if (!nds)
          nds = ndsets;
       if (!nis)
@@ -1396,8 +1636,7 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
    assert(N && M && K);
    if (isTest)
    {
-      //nerr = doTesting_Acsr<mytrusted_csr, mytest_csr>
-      //                         (S_csr0, M, N, K, alpha, beta, tkern); 
+#if 0
    #ifdef DREAL
       nerr = doTesting_Acsr<mytrusted_csr, dgfusedMM_csr>
                                (S_csr0, M, N, K, alpha, beta, tkern); 
@@ -1405,6 +1644,10 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
       nerr = doTesting_Acsr<mytrusted_csr, sgfusedMM_csr>
                                (S_csr0, M, N, K, alpha, beta, tkern); 
    #endif
+#else // calling general fusedmm 
+      nerr = doTesting_Acsr<mytrusted_csr, mytest_csr>
+                               (S_csr0, M, N, K, alpha, beta, tkern); 
+#endif
       // error checking 
       if (!nerr)
          fprintf(stdout, "PASSED TEST\n");

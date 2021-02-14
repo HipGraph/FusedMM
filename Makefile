@@ -86,21 +86,27 @@ mkl: $(BIN)/x$(pre)fusedMMtime_MKL_pt
 #
 #   serial version
 #
-$(BIN)/$(pre)fusedMMtime.o: fusedMMtime.cpp $(KINCdir)/kernels.h  
+$(BIN)/$(pre)fusedMM.o: fusedMM.cpp fusedMM.h fusedMM_internal.h   
+	mkdir -p $(BIN)
+	$(CC) $(FLAGS) $(TYPFLAGS) -I$(KINCdir) -DCPP -c fusedMM.cpp -o $@   
+$(BIN)/$(pre)fusedMMtime.o: fusedMMtime.cpp fusedMM.h $(KINCdir)/kernels.h  
 	mkdir -p $(BIN)
 	$(CC) $(FLAGS) $(TYPFLAGS) -I$(KINCdir) -DCPP -c fusedMMtime.cpp -o $@   
-$(BIN)/x$(pre)fusedMMtime: $(BIN)/$(pre)fusedMMtime.o $(sLIBS)  
+$(BIN)/x$(pre)fusedMMtime: $(BIN)/$(pre)fusedMMtime.o  $(BIN)/$(pre)fusedMM.o $(sLIBS)  
 	$(CC) $(FLAGS) -o $@ $^ $(sLIBS) -lm
 #
 #  parallel version 
 #
-$(BIN)/$(pre)fusedMMtime_pt.o: fusedMMtime.cpp $(KINCdir)/kernels.h  
+$(BIN)/$(pre)fusedMM_pt.o: fusedMM.cpp fusedMM.h fusedMM_internal.h  
+	mkdir -p $(BIN)
+	$(CC) $(FLAGS) $(TYPFLAGS) -I$(KINCdir) $(MYPT_FLAG)  \
+		-DCPP -c fusedMM.cpp -o $@   
+$(BIN)/$(pre)fusedMMtime_pt.o: fusedMMtime.cpp fusedMM.h $(KINCdir)/kernels.h  
 	mkdir -p $(BIN)
 	$(CC) $(FLAGS) $(TYPFLAGS) -I$(KINCdir) $(MYPT_FLAG) -DCPP \
 		-c fusedMMtime.cpp -o $@   
-$(BIN)/x$(pre)fusedMMtime_pt: $(BIN)/$(pre)fusedMMtime_pt.o $(ptLIBS)  
+$(BIN)/x$(pre)fusedMMtime_pt: $(BIN)/$(pre)fusedMMtime_pt.o $(BIN)/$(pre)fusedMM_pt.o $(ptLIBS)  
 	$(CC) $(FLAGS) -o $@ $^ $(ptLIBS) -lm 
-
 #
 # ******** Build with mkl 
 #
