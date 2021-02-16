@@ -9,9 +9,9 @@ interval=64
 pre=s
 vlen=16
 
-Ddir=../dataset  # path 
+Ddir=./dataset  # path 
 #dataset="blogcatalog.mtx cora.mtx citeseer.mtx com-Amazon.mtx flickr.mtx pubmed.mtx youtube.mtx" 
-dataset="youtube.mtx" 
+dataset="blogcatalog.mtx" 
 
 rdir=./results
 
@@ -80,7 +80,7 @@ for rb in $rblk
 do
    make clean
    make killlib
-   make pre=$pre vlen=$vlen NTHREADS=$nthd mdim=$kend ibit=64 regblk=$rb kruntime=$kruntime bestK=$bestK
+   make test pre=$pre vlen=$vlen NTHREADS=$nthd mdim=$kend ibit=64 regblk=$rb kruntime=$kruntime bestK=$bestK
    for kern in $kerns 
    do
       for dset in $dataset 
