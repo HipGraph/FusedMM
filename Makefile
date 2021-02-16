@@ -10,20 +10,35 @@ ibit=64
 
 # valuetype precision : double single 
 pre=s
-vlen=16
+
 #
 # SIMD width on system: 
-#    Update ARCH, SIMD variable in kernels/make.inc 
-#    See kernels/include/simd.h for details    
+#    Depend on ARCH, configure step sets SIMD variable in kernels/make.inc 
+#    See kernels/include/simd.h for different width on different system  
 #
-# max dimension or max value of K for generated library 
-mdim=256 
+vlen=16
+
+#
+#  Register blocking strategies: 
+#  	bacrb = all three dense matrix register blocked
+#  	acrb = X(A) and Z(C) register blocked
+#  	crb = only Z(C) is register blocked 
+#
 regblk=bacrb 
 #regblk=acrb 
 #regblk=crb 
 
-kruntime=0
-bestK=128    # needed when kruntime=1 
+#
+#   Two different phases: 
+#   	K-compile time: kernel generated upto mdim but fully unrolled  
+#   	K-runtime: kernel generated upto bestK unrolled and rolled beyond
+#   Note: K-compile time mode only support kernels upto mdim, for arbitrary 
+#   K, we should use K-runtime but after tuning the bestK 
+#
+#kruntime=0
+mdim=1024 
+kruntime=1   # 0 means K compile time, used in tuning phase  
+bestK=512    # needed when kruntime=1, normally got from tuning step  
 
 #setup flags based on type 
 ifeq ($(pre), d)
