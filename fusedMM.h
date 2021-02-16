@@ -110,9 +110,9 @@ int fusedMM_csr
  * USER DEFINE FUNC PROTOTYPE
  *    NOTE: define these macros when user provides the user defined functions
  *    For Example, enabling following three macros means, user will provide 
- *    user defined function for SOP and VSC (which is defined in 
- *    fusedMMtime.cpp). These user functions will be used when SOP_UDEF and 
- *    VSC_UDEF messages are used.
+ *    user defined function for SOP(which is defined in 
+ *    fusedMMtime.cpp). These user functions will be used when SOP_UDEF messages
+ *    are used.
  *    Disable these macros if you don't have any user defined functions. 
  *    When these macros are not defined, but UDEF message is used the default
  *    UDEF function will return FUSEDMM_UNDEFINED_USER_FUNTION status.
@@ -121,7 +121,7 @@ int fusedMM_csr
 //#define VOP_UDEF_IMPL 1 
 //#define ROP_UDEF_IMPL 1 
 #define SOP_UDEF_IMPL 1 
-#define VSC_UDEF_IMPL 1 
+//#define VSC_UDEF_IMPL 1 
 //#define AOP_UDEF_IMPL 1 
 
 int VOP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 

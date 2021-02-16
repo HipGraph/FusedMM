@@ -630,7 +630,7 @@ int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
 // SOP_UDEF for t-distribution  model
 int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
 {  
-   out = 2.0 / (1.0 + val);
+   out = scale(2.0 / (1.0 + val));
    return FUSEDMM_SUCCESS_RETURN;
 }
 #elif defined(ENABLE_LL)
@@ -662,7 +662,6 @@ int ROP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
    }  
    return FUSEDMM_SUCCESS_RETURN;
 }
-#endif
 int VSC_UDEF_FUNC(INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE scal,
       INDEXTYPE out_dim, VALUETYPE *out)
 {
@@ -672,6 +671,7 @@ int VSC_UDEF_FUNC(INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE scal,
    }
    return FUSEDMM_SUCCESS_RETURN;
 }
+#endif
 
    
 void mytest_csr
@@ -701,7 +701,7 @@ void mytest_csr
    switch(tkern)
    {
       case 't' : // t-dist 
-	 imsg = VOP_SUBL | ROP_NORMR | SOP_UDEF | VSC_UDEF | AOP_ADD;
+	 imsg = VOP_SUBL | ROP_NORMR | SOP_UDEF | VSC_MUL | AOP_ADD;
 	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
                pntre, a, lda, b, ldb, beta, c, ldc);
          break;
