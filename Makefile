@@ -64,7 +64,7 @@ FLAGS = -fopenmp -O3 -march=native -std=c++11
 # My parallel flags 
 #
 ldb=l
-NTHREADS= 10
+NTHREADS=48
 #NTHREADS=6
 LDB=LOAD_BALANCE 
 MYPT_FLAG = -DPTTIME -DNTHREADS=$(NTHREADS) -D$(LDB)  
@@ -164,5 +164,5 @@ clean:
 	rm -rf ./bin/*
 
 killlib: 
-	cd $(Kdir) ; make clean pre=s
+	cd $(Kdir) ; make clean pre=$(pre)
 
