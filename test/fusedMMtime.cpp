@@ -345,7 +345,7 @@ void truested_gcn_csr
 #ifdef PTTIME 
    #pragma omp parallel for
 #endif
-   // spmm    
+   // gcn   
    for (INDEXTYPE i = 0; i < m; i++)
    {
       for (INDEXTYPE j=pntrb[i]; j < pntre[i]; j++)
@@ -723,6 +723,12 @@ void mytest_csr
          break;
       case 'm' : // spmm
          imsg = VOP_COPY_RHS | ROP_NOOP | SOP_COPY | VSC_MUL | AOP_ADD;
+         
+         fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb, 
+               pntre, a, lda, b, ldb, beta, c, ldc);
+         break;
+      case 'm' : // gcn 
+         imsg = VOP_COPY_RHS | ROP_NOOP | SOP_NOOP | VSC_MUL | AOP_ADD;
          
          fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb, 
                pntre, a, lda, b, ldb, beta, c, ldc);
