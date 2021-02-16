@@ -651,7 +651,7 @@ int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
 /*
  * User defined function for ROP to perform self-DOT product
  */
-
+#if 0
 int ROP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
       const VALUETYPE *rhs, VALUETYPE &out)
 {
@@ -662,7 +662,7 @@ int ROP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
    }  
    return FUSEDMM_SUCCESS_RETURN;
 }
-
+#endif
 int VSC_UDEF_FUNC(INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE scal,
       INDEXTYPE out_dim, VALUETYPE *out)
 {
@@ -701,13 +701,13 @@ void mytest_csr
    switch(tkern)
    {
       case 't' : // t-dist 
-	 imsg = VOP_SUBL | ROP_UDEF | SOP_UDEF | VSC_UDEF | AOP_ADD;
+	 imsg = VOP_SUBL | ROP_NORMR | SOP_UDEF | VSC_UDEF | AOP_ADD;
 	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
                pntre, a, lda, b, ldb, beta, c, ldc);
          break;
       case 'f':
          //printf("Calling FR model!");
-	 imsg = VOP_SUBL | ROP_UDEF | SOP_UDEF | VSC_MUL | AOP_ADD;
+	 imsg = VOP_SUBL | ROP_NORMR | SOP_UDEF | VSC_MUL | AOP_ADD;
 	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
                pntre, a, lda, b, ldb, beta, c, ldc);
 	 break;
@@ -727,7 +727,7 @@ void mytest_csr
          fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb, 
                pntre, a, lda, b, ldb, beta, c, ldc);
          break;
-      case 'm' : // gcn 
+      case 'g' : // gcn 
          imsg = VOP_COPY_RHS | ROP_NOOP | SOP_NOOP | VSC_MUL | AOP_ADD;
          
          fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb, 

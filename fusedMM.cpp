@@ -180,6 +180,23 @@ int KERN_ROP_ADD_RHS (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim
    return FUSEDMM_SUCCESS_RETURN;
 }
 
+int KERN_ROP_NORML (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
+      const VALUETYPE *rhs, VALUETYPE &out)
+{
+   out = 0.0;
+   for (INDEXTYPE i = 0; i < rhs_dim; i++)
+      out += lhs[i] * lhs[i];
+   return FUSEDMM_SUCCESS_RETURN;
+}
+
+int KERN_ROP_NORMR (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
+      const VALUETYPE *rhs, VALUETYPE &out)
+{
+   out = 0.0;
+   for (INDEXTYPE i = 0; i < rhs_dim; i++)
+      out += rhs[i] * rhs[i];
+   return FUSEDMM_SUCCESS_RETURN;
+}
 /* ============================================================================
  *    SOP operation  
  *       mostly user defined, default NOOP 
@@ -371,6 +388,12 @@ FP_ROP_FUNC GetROPFunc(int32_t msg)
       case ROP_ADD_RHS: 
          ROP_FUNC = KERN_ROP_ADD_RHS;
          break;
+      case ROP_NORML: 
+         ROP_FUNC = KERN_ROP_NORML;
+         break;
+      case ROP_NORMR: 
+         ROP_FUNC = KERN_ROP_NORMR;
+         break;
       case ROP_UDEF: 
          ROP_FUNC = ROP_UDEF_FUNC;
          break;
@@ -474,12 +497,61 @@ int fusedMM_csr
 )
 {
    int status = 0;
+
+#ifdef ENABLE_OPT_FUSEDMM
 /* ============================================================================
- * call Predefined optimized kernel
+ * call Predefined optimized kernel (three cases): 
+ *    1. Detect pattern from message (no UDEF) : spmm, gcn 
+ *    2. Detect pattern from message with SOP_UDEF: fr, sigmoid
+ *        Since only the scalar computation is user defined, optimized 
+ *        implementation can just call this user defined function directly 
+ *        without any performance loss. 
+ *        For this version, we implemented SOP inside opt kernel for simplicity. 
+ *    3. Speciliazed optFusedMM implementation: t-dist
+ *        Since we have special scaling operation on vector in one step 
+ *        (VSC_UDEF), we implemeneted t-dist as special kernel in optFusedMM  
  * ===========================================================================*/
 /*
+ * Check for specific GCN pattern
+ */
+   if ( GET_VOP_FLAG(imessage) == VOP_COPY_RHS 
+         && GET_ROP_FLAG(imessage) == ROP_NOOP 
+         && GET_SOP_FLAG(imessage) == SOP_NOOP 
+         && GET_VSC_FLAG(imessage) == VSC_MUL 
+         && GET_AOP_FLAG(imessage) == AOP_ADD)
+   {
+      //std::cout << "calling optimized sigmoid" << std::endl;
+      #ifdef DREAL 
+      dgfusedMM_csr('g', m, n, k, alpha, nnz, rows, cols, val, 
+              indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
+      #else
+      sgfusedMM_csr('g', m, n, k, alpha, nnz, rows, cols, val, 
+              indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
+      #endif
+      return status;
+   }
+/*
+ * Check for specific SPMM 
+ */
+   if ( GET_VOP_FLAG(imessage) == VOP_COPY_RHS 
+         && GET_ROP_FLAG(imessage) == ROP_NOOP 
+         && GET_SOP_FLAG(imessage) == SOP_COPY 
+         && GET_VSC_FLAG(imessage) == VSC_MUL 
+         && GET_AOP_FLAG(imessage) == AOP_ADD)
+   {
+      //std::cout << "calling optimized sigmoid" << std::endl;
+      #ifdef DREAL 
+      dgfusedMM_csr('m', m, n, k, alpha, nnz, rows, cols, val, 
+              indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
+      #else
+      sgfusedMM_csr('m', m, n, k, alpha, nnz, rows, cols, val, 
+              indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
+      #endif
+      return status;
+   }
+/*
  * check for sigmoid kernel 
- * FIXME: update gsigmoid to call user define SOP 
+ * FIXME: update gsigmoid to call user define SOP_UDEF  
  */
    if ( GET_VOP_FLAG(imessage) == VOP_COPY_RHS 
          && GET_ROP_FLAG(imessage) == ROP_DOT 
@@ -498,6 +570,7 @@ int fusedMM_csr
       return status;
    }
 
+#endif
 /* ===========================================================================*/
 /*
  * Select appropriate operation based on the message
