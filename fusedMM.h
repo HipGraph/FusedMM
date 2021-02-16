@@ -36,6 +36,7 @@
 
 /* SOP */
 #define SOP_NOOP 0x000  
+#define SOP_COPY 0x100  
 #define SOP_UDEF 0xF00  
 #define SOP_CLEAR(bvec) ((bvec) & (~((int32_t)0xF00)))  
 #define SOP_MASK(bvec) ((bvec) & 0xF00)  
@@ -108,7 +109,7 @@ int fusedMM_csr
 //#define VOP_UDEF_IMPL 1 
 #define ROP_UDEF_IMPL 1 
 #define SOP_UDEF_IMPL 1 
-//#define VSC_UDEF_IMPL 1 
+#define VSC_UDEF_IMPL 1 
 //#define AOP_UDEF_IMPL 1 
 
 int VOP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
