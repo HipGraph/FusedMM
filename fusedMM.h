@@ -14,9 +14,10 @@
 #define VOP_COPY_LHS 0x1  
 #define VOP_COPY_RHS 0x2  
 #define VOP_ADD  0x3
-#define VOP_SUB  0x4
-#define VOP_MAX  0x5
-#define VOP_MIN  0x6
+#define VOP_SUBL  0x4
+#define VOP_SUBR  0x5
+#define VOP_MAX  0x6
+#define VOP_MIN  0x7
 #define VOP_UDEF  0xF
 #define VOP_CLEAR(bvec) (((bvec)>>4)<<4)  /* clearing last 4 bit */
 #define VOP_MASK(bvec) ((bvec) & 0xF)

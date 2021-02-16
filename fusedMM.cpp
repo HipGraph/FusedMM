@@ -18,8 +18,9 @@
 
 
 /*============================================================================
- *    VOP operations 
- */
+ *    VOP (Vector-vector operation) 
+ *       format: out = lhs op rhs 
+ *============================================================================*/
 
 int KERN_VOP_COPY_LHS (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
       const VALUETYPE *rhs, INDEXTYPE out_dim, VALUETYPE *out)
@@ -69,7 +70,7 @@ int KERN_VOP_ADD (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
    return FUSEDMM_SUCCESS_RETURN;
 }
 
-int KERN_VOP_SUB (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
+int KERN_VOP_SUBL (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
       const VALUETYPE *rhs, INDEXTYPE out_dim, VALUETYPE *out)
 {
 #ifdef DEBUG 
@@ -80,7 +81,23 @@ int KERN_VOP_SUB (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
    }
 #endif
    for (INDEXTYPE i = 0; i < out_dim; i++)
-      out[i] = - lhs[i] + rhs[i]; //changed: previously it was: out[i] = lhs[i] + rhs[i]
+      out[i] = - lhs[i] + rhs[i]; // subtract lhs from rhs 
+
+   return FUSEDMM_SUCCESS_RETURN;
+}
+
+int KERN_VOP_SUBR (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
+      const VALUETYPE *rhs, INDEXTYPE out_dim, VALUETYPE *out)
+{
+#ifdef DEBUG 
+   if (lhs_dim != rhs_dim && lhs_dim != out_dim)
+   {
+      fprintf(stderr, "dimension of lhs and rhs are not same!!!");
+      return FUSEDMM_FAIL_RETURN; 
+   }
+#endif
+   for (INDEXTYPE i = 0; i < out_dim; i++)
+      out[i] = lhs[i] - rhs[i]; //subtract rhs from lhs 
 
    return FUSEDMM_SUCCESS_RETURN;
 }
@@ -118,9 +135,9 @@ int KERN_VOP_MIN (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
 }
 
 /* ============================================================================
- *    ROP operation  
+ *    ROP (Reduction operation)  
  * 
- */
+ *============================================================================*/
 int KERN_ROP_NOOP (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
       const VALUETYPE *rhs, VALUETYPE &out)
 {
@@ -165,17 +182,18 @@ int KERN_ROP_ADD_RHS (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim
 
 /* ============================================================================
  *    SOP operation  
- * 
- */
+ *       mostly user defined, default NOOP 
+ *=============================================================================*/
 int KERN_SOP_NOOP(VALUETYPE val, VALUETYPE &out)
 {
    // dummy function to avoid extra checking 
    return FUSEDMM_SUCCESS_RETURN;
 }
 /* ============================================================================
- *    VSC operation  
- * 
- */
+ *    VSC/MOP operation
+ *       Format: out = scalar op rhs  //output (vector), lhs(scalar), rhs(vector) 
+ *       Elementwise mult/add 
+ *============================================================================*/
 
 int KERN_VSC_NOOP(INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE scal, 
       INDEXTYPE out_dim, VALUETYPE *out) 
@@ -217,12 +235,11 @@ int KERN_VSC_ADD(INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE scal,
 }
 
 /* ============================================================================
- *    AOP operation  
- * 
- */
+ *    AOP (Accumulate operation)
+ *       Format: out = out op rhs 
+ *       
+ *=============================================================================*/
 
-//int KERN_AOP_NOOP(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-//      const VALUETYPE *rhs, INDEXTYPE out_dim, VALUETYPE *out) 
 int KERN_AOP_NOOP(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
       VALUETYPE *out) 
 {
@@ -230,8 +247,6 @@ int KERN_AOP_NOOP(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim,
    return FUSEDMM_SUCCESS_RETURN;
 }
 
-//int KERN_AOP_MUL(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-//      const VALUETYPE *rhs, INDEXTYPE out_dim, VALUETYPE *out) 
 int KERN_AOP_MUL(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
       VALUETYPE *out) 
 {
@@ -247,8 +262,6 @@ int KERN_AOP_MUL(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim,
    return FUSEDMM_SUCCESS_RETURN;
 }
 
-//int KERN_AOP_ADD(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-//      const VALUETYPE *rhs, INDEXTYPE out_dim, VALUETYPE *out) 
 int KERN_AOP_ADD(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
       VALUETYPE *out) 
 {
@@ -264,8 +277,6 @@ int KERN_AOP_ADD(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim,
    return FUSEDMM_SUCCESS_RETURN;
 }
 
-//int KERN_AOP_MAX(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-//      const VALUETYPE *rhs, INDEXTYPE out_dim, VALUETYPE *out) 
 int KERN_AOP_MAX(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
       VALUETYPE *out) 
 {
@@ -281,8 +292,6 @@ int KERN_AOP_MAX(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim,
    return FUSEDMM_SUCCESS_RETURN;
 }
 
-//int KERN_AOP_MIN(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-//      const VALUETYPE *rhs, INDEXTYPE out_dim, VALUETYPE *out) 
 int KERN_AOP_MIN(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
       VALUETYPE *out) 
 {
@@ -300,9 +309,9 @@ int KERN_AOP_MIN(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim,
 
 
 /*=============================================================================
- * Select funciton based on imeesage 
+ * Select funciton based on imessage 
  *
- */
+ *============================================================================*/
 
 FP_VOP_FUNC GetVOPFunc(int32_t msg)
 {
@@ -323,8 +332,11 @@ FP_VOP_FUNC GetVOPFunc(int32_t msg)
       case VOP_ADD: 
          VOP_FUNC = KERN_VOP_ADD;
          break;
-      case VOP_SUB: 
-         VOP_FUNC = KERN_VOP_SUB;
+      case VOP_SUBL: 
+         VOP_FUNC = KERN_VOP_SUBL;
+         break;
+      case VOP_SUBR: 
+         VOP_FUNC = KERN_VOP_SUBR;
          break;
       case VOP_MAX: 
          VOP_FUNC = KERN_VOP_MAX;

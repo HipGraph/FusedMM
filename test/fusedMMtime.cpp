@@ -701,13 +701,13 @@ void mytest_csr
    switch(tkern)
    {
       case 't' : // t-dist 
-	 imsg = VOP_SUB | ROP_UDEF | SOP_UDEF | VSC_UDEF | AOP_ADD;
+	 imsg = VOP_SUBL | ROP_UDEF | SOP_UDEF | VSC_UDEF | AOP_ADD;
 	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
                pntre, a, lda, b, ldb, beta, c, ldc);
          break;
       case 'f':
          //printf("Calling FR model!");
-	 imsg = VOP_SUB | ROP_UDEF | SOP_UDEF | VSC_MUL | AOP_ADD;
+	 imsg = VOP_SUBL | ROP_UDEF | SOP_UDEF | VSC_MUL | AOP_ADD;
 	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
                pntre, a, lda, b, ldb, beta, c, ldc);
 	 break;
