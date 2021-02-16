@@ -9,21 +9,21 @@ ibit=64
 #ibit=32
 
 # valuetype precision : double single 
-pre=
-vlen=
+pre=s
+vlen=16
 #
 # SIMD width on system: 
 #    Update ARCH, SIMD variable in kernels/make.inc 
 #    See kernels/include/simd.h for details    
 #
 # max dimension or max value of K for generated library 
-mdim=128  
+mdim=256 
 regblk=bacrb 
 #regblk=acrb 
 #regblk=crb 
 
-kruntime=1
-bestK=64    # needed when kruntime=1 
+kruntime=0
+bestK=128    # needed when kruntime=1 
 
 #setup flags based on type 
 ifeq ($(pre), d)
@@ -49,7 +49,7 @@ FLAGS = -fopenmp -O3 -march=native -std=c++11
 # My parallel flags 
 #
 ldb=l
-NTHREADS=48
+NTHREADS= 10
 #NTHREADS=6
 LDB=LOAD_BALANCE 
 MYPT_FLAG = -DPTTIME -DNTHREADS=$(NTHREADS) -D$(LDB)  
@@ -81,8 +81,23 @@ LD_MKL_FLAG =  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_ilp64.a \
 # 	Target 
 # =========================================================================
 
-all: $(BIN)/x$(pre)fusedMMtime_pt        
-mkl: $(BIN)/x$(pre)fusedMMtime_MKL_pt        
+all: $(ptLIBS) 
+
+data=dataset/blckhole.mtx
+d=128  # feature dimension to test
+t=s    # kernel to test, defaul sigmoid, other option = t, g, m
+test: $(BIN)/x$(pre)fusedMMtime_pt       
+	$(BIN)/x$(pre)fusedMMtime_pt -input $(data) -T 1 -K $(d)        
+
+time: $(BIN)/x$(pre)fusedMMtime_pt       
+	$(BIN)/x$(pre)fusedMMtime_pt -input $(data) -K $(d)        
+
+# MKL only supports SPMM kenrel 
+test_mkl: $(BIN)/x$(pre)fusedMMtime_MKL_pt        
+	$(BIN)/x$(pre)fusedMMtime_pt -input $(data) -T 1 -K $(d) -t m        
+time_mkl: $(BIN)/x$(pre)fusedMMtime_MKL_pt        
+	$(BIN)/x$(pre)fusedMMtime_pt -input $(data) -K $(d) -t m        
+
 #
 #   serial version
 #
@@ -101,19 +116,19 @@ $(BIN)/$(pre)fusedMM_pt.o: fusedMM.cpp fusedMM.h fusedMM_internal.h
 	mkdir -p $(BIN)
 	$(CC) $(FLAGS) $(TYPFLAGS) -I$(KINCdir) $(MYPT_FLAG)  \
 		-DCPP -c fusedMM.cpp -o $@   
-$(BIN)/$(pre)fusedMMtime_pt.o: fusedMMtime.cpp fusedMM.h $(KINCdir)/kernels.h  
+$(BIN)/$(pre)fusedMMtime_pt.o: test/fusedMMtime.cpp fusedMM.h $(KINCdir)/kernels.h  
 	mkdir -p $(BIN)
 	$(CC) $(FLAGS) $(TYPFLAGS) -I$(KINCdir) $(MYPT_FLAG) -DCPP \
-		-c fusedMMtime.cpp -o $@   
+		-c test/fusedMMtime.cpp -o $@   
 $(BIN)/x$(pre)fusedMMtime_pt: $(BIN)/$(pre)fusedMMtime_pt.o $(BIN)/$(pre)fusedMM_pt.o $(ptLIBS)  
 	$(CC) $(FLAGS) -o $@ $^ $(ptLIBS) -lm 
 #
 # ******** Build with mkl 
 #
-$(BIN)/$(pre)fusedMMtime_MKL_pt.o: fusedMMtime.cpp $(KINCdir)/kernels.h  
+$(BIN)/$(pre)fusedMMtime_MKL_pt.o: test/fusedMMtime.cpp $(KINCdir)/kernels.h  
 	mkdir -p $(BIN)
 	$(CC) $(FLAGS) $(TYPFLAGS) -DTIME_MKL  -I$(KINCdir) $(PT_CC_MKL_FLAG) \
-	   $(MYPT_FLAG) -DCPP -c fusedMMtime.cpp -o $@   
+	   $(MYPT_FLAG) -DCPP -c test/fusedMMtime.cpp -o $@   
 
 $(BIN)/x$(pre)fusedMMtime_MKL_pt: $(BIN)/$(pre)fusedMMtime_MKL_pt.o $(ptLIBS)  
 	$(CC) $(FLAGS) -o $@ $^ $(ptLIBS) -lm $(PT_LD_MKL_FLAG) 
@@ -126,19 +141,6 @@ $(sLIBS)  : $(ptLIBS)
 $(ptLIBS) : $(Kdir)/rungen.sh  
 	cd $(Kdir) ; ./rungen.sh -p $(pre) -i $(ibit) -s $(vlen) -e $(mdim) \
 	   -v $(vlen) -t $(NTHREADS) -r $(regblk) -k $(kruntime) -b $(bestK)
-
-#
-# to generate datatset... not used yet 
-#
-gen-er:
-	./scripts/gen_er.sh
-
-gen-rmat:
-	./scripts/gen_rmat.sh
-
-download:
-	./scripts/download.sh
-
 #
 # cleanup 
 #

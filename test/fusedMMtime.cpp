@@ -3,12 +3,11 @@
 #include <random>
 #include <cassert>
 #include <omp.h>
-#include "CSC.h"
-#include "CSR.h"
-#include "commonutility.h"
-#include "utility.h"
+#include "include/CSC.h"
+#include "include/CSR.h"
+#include "include/commonutility.h"
+#include "include/utility.h"
 
-//#include"kernels/include/kernels.h"
 /*
  * select data type in Makefile
  *    pre=[s,d]
@@ -25,7 +24,7 @@
  * Added header file for general fusedMM 
  */
 
-#include "fusedMM.h"
+#include "../fusedMM.h"
 
 
 #ifdef INT64
