@@ -1,8 +1,9 @@
 #ifndef FUSED_SDMM_SPMM_INTERNAL_H
 #define FUSED_SDMM_SPMM_INTERNAL_H
 /*
+ * NOTE: 
  * This header file is meant for internal use to implement the general kernel,
- * not intended for the user. See fused_sddmm_spmm.h for function prototypes
+ * not intended for the user. See fusedMM.h for function prototypes
  */
 
 /*
@@ -20,10 +21,6 @@ typedef int (*FP_SOP_UDEF_FUNC)(VALUETYPE val, VALUETYPE &out);
 typedef int (*FP_VSC_UDEF_FUNC)(INDEXTYPE rhs_dim, const VALUETYPE *rhs, 
       VALUETYPE scal, INDEXTYPE out_dim, VALUETYPE *out); 
 
-//typedef int (*FP_AOP_UDEF_FUNC)(INDEXTYPE lhs_dim, const VALUETYPE *lhs, 
-//      INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
-//      VALUETYPE *out); 
-
 typedef int (*FP_AOP_UDEF_FUNC)(INDEXTYPE rhs_dim, const VALUETYPE *rhs, 
       INDEXTYPE out_dim, VALUETYPE *out); 
 /*
@@ -37,15 +34,12 @@ typedef int (*FP_ROP_FUNC)(INDEXTYPE lhs_dim, const VALUETYPE *lhs,
 typedef int (*FP_SOP_FUNC)(VALUETYPE val, VALUETYPE &out); 
 typedef int (*FP_VSC_FUNC)(INDEXTYPE rhs_dim, const VALUETYPE *rhs, 
       VALUETYPE scal, INDEXTYPE out_dim, VALUETYPE *out); 
-//typedef int (*FP_AOP_FUNC)(INDEXTYPE lhs_dim, const VALUETYPE *lhs, 
-//      INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
-//      VALUETYPE *out); 
 typedef int (*FP_AOP_FUNC)(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
       VALUETYPE *out); 
 /*
  * USER DEFINE FUNC IMPLEMENTATION 
  * DUMMY function, always return error when not implemented by user but used in
- * message by UDEF
+ * message using UDEF
  */
 #ifndef VOP_UDEF_IMPL 
 int VOP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 

@@ -5,9 +5,10 @@
  * Messages for different operations
  *    VOP message : x0~xF
  *    ROP message : x00~x0F
- *    VOP message : x0~xF
- *    VOP message : x0~xF
- * NOTE: use get/set macro to get or set message  
+ *    VOP message : x000~x00F
+ *    VOP message : x0000~x000F
+ * NOTE: use get/set macro to get or set any flag 
+ * NOTE: IMPORTANT: see rules for user defined function and macros at the bottom
  */
 /* VOP */
 #define VOP_NOOP 0x0  
@@ -68,25 +69,25 @@
 
 int fusedMM_csr 
 (
-   const int32_t imessage, // message to dictate the operations  
+   const int32_t imessage,    // message to dictate the operations  
    const INDEXTYPE m,         // number of row of X
    const INDEXTYPE n,         // number of row of Y
-   const INDEXTYPE k,         // dimension (col of X or Y)
-   const VALUETYPE alpha,   // not used yet
+   const INDEXTYPE k,         // feature dimension (col of X or Y)
+   const VALUETYPE alpha,     // not used yet
    const INDEXTYPE nnz,       // nonzeros in sparse matrix 
    const INDEXTYPE rows,      // number of rows in sparse matrix
    const INDEXTYPE cols,      // number of columns in sparse matrix 
-   const VALUETYPE *val,    // value of non-zeros 
+   const VALUETYPE *val,      // value of non-zeros 
    const INDEXTYPE *indx,     // colids -> column indices 
-   const INDEXTYPE *pntrb,    // starting of rowptr for each row
-   const INDEXTYPE *pntre,    // ending of rowptr for each row
-   const VALUETYPE *x,      // Dense X matrix
-   const INDEXTYPE ldx,       // 1eading dimension of a   
-   const VALUETYPE *y,      // Dense Y matrix
-   const INDEXTYPE ldy,       // leading dimension of b   
-   const VALUETYPE beta,    // beta value 
-   VALUETYPE *z,            // Dense matrix Z
-   const INDEXTYPE ldz        // leading dimension size of c  
+   const INDEXTYPE *pntrb,    // starting of rowptr for each row: rowptr
+   const INDEXTYPE *pntre,    // ending of rowptr for each row: rowptr+1
+   const VALUETYPE *x,        // Dense X matrix
+   const INDEXTYPE ldx,       // 1eading dimension of X
+   const VALUETYPE *y,        // Dense Y matrix
+   const INDEXTYPE ldy,       // leading dimension of Y   
+   const VALUETYPE beta,      // beta value, Z = alpha*func(X,Y,A) + beta*Z
+   VALUETYPE *z,              // Dense matrix Z
+   const INDEXTYPE ldz        // leading dimension size of Z 
 );
 
 /*
@@ -104,7 +105,15 @@ int fusedMM_csr
 #define FUSEDMM_UNDEFINED_USER_FUNCTION 64 
 
 /*
- * USER DEFINE FUNC PROTOTYPE 
+ * USER DEFINE FUNC PROTOTYPE
+ *    NOTE: define these macros when user provides the user defined functions
+ *    For Example, enabling following three macros means, user will provide 
+ *    user defined function for ROP, SOP and VSC (which is defined in 
+ *    fusedMMtime.cpp). These user functions will be used when ROP_UDEF, 
+ *    SOP_UDEF and VSC_UDEF messages are used.
+ *    Disable these macros if you don't have any user defined functions. 
+ *    When these macros are not defined, but UDEF message is used the default
+ *    UDEF function will return FUSEDMM_UNDEFINED_USER_FUNTION status.
  */
 
 //#define VOP_UDEF_IMPL 1 
