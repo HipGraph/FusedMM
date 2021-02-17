@@ -181,11 +181,15 @@ $(ptLIBS) : $(Kdir)/rungen.sh
 #  Target for executable 
 # ==============================================================================
 
-@multidef par serial parallel 
-@multidef pflg @@ @$(MYPT_FLAG)@
+@SKIP ---@multidef pt @@ @@ @_pt@ 
+@define pt @@
+@define pt @_pt@
+@SKIP ---@multidef pflg @@ @$(MYPT_FLAG)@
+@define pflg @@
+@define pflg @$(MYPT_FLAG)@
 @multidef lib $(sLIBs) $(ptLIBS)
-@multidef pt @_pt@ @@ 
-@whiledef pt
+@multidef par serial parallel 
+@whiledef par
 # ==============================================================================
 #  @(par) version 
 # ==============================================================================
@@ -193,7 +197,9 @@ $(ptLIBS) : $(Kdir)/rungen.sh
 #
 #  Compiling Fusedmm  
 #
-   @multidef optflg @@ @-DENABLE_OPT_FUSEDMM@
+   @SKIP ---@multidef optflg @@ @-DENABLE_OPT_FUSEDMM@
+   @define optflg @@ 
+   @define optflg @-DENABLE_OPT_FUSEDMM@
    @multidef fmm FusedMM OptFusedMM
    @whiledef fmm
 $(BIN)/$(pre)@(fmm)@(pt).o: fusedMM.c fusedMM.h fusedMM_internal.h
@@ -225,7 +231,7 @@ $(BIN)/x$(pre)@(fmm)time_@(kn)@(pt): $(BIN)/$(pre)FusedMMtime_@(kn)@(pt).o  $(BI
       @endwhile
    @endwhile
    
-   @undef par 
+   @undef pt 
    @undef pflg
    @undef lib
 @endwhile 
