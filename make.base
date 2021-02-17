@@ -110,7 +110,8 @@ kruntime=1   # 0 means K compile time, used in tuning phase
 bestK=512    # needed when kruntime=1, normally got from tuning step  
 
 kern=s   # t = tdist/fr, s = sigmoid, m = spmm, g = gcn 
-
+data=dataset/blogcatalog.mtx      
+d=128 
 # =============================================================================
 #  General Flags 
 # ============================================================================
@@ -168,6 +169,18 @@ LD_MKL_FLAG =  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_ilp64.a \
 	       ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread \
 	       -lm -ldl 
 
+# =============================================================================
+#  Default Target  
+# ==============================================================================
+@declare "all: " y n 
+@multidef fmm FusedMM OptFusedMM
+@whiledef fmm
+@multidef  kn sigmoid tdist fr spmm gcn
+   @whiledef kn
+           $(BIN)/x$(pre)@(fmm)time_@(kn)_pt
+   @endwhile
+@endwhile
+@enddeclare 
 # ===========================================================================
 # To generate FusedMM kernels 
 # ===========================================================================
@@ -204,7 +217,7 @@ $(ptLIBS) : $(Kdir)/rungen.sh
    @whiledef fmm
 $(BIN)/$(pre)@(fmm)@(pt).o: fusedMM.c fusedMM.h fusedMM_internal.h
 	mkdir -p $(BIN)
-	$(CC) $(CCFLAGS) $(TYPFLAGS) -I$(KINCdir) @(pflg) @(optflg)\
+	$(CC) $(CCFLAGS) $(TYPFLAGS) -I$(KINCdir) @(pflg) @(optflg) \
            -c fusedMM.c -o $@   
            @undef optflg 
    @endwhile
@@ -213,7 +226,8 @@ $(BIN)/$(pre)@(fmm)@(pt).o: fusedMM.c fusedMM.h fusedMM_internal.h
 #
    @multidef  kn sigmoid tdist fr spmm gcn 
    @whiledef kn
-$(BIN)/$(pre)FusedMMtime_@(kn)@(pt).o: $(Tdir)/fusedMMtime.cpp fusedMM.h $(KINCdir)/kernels.h  
+$(BIN)/$(pre)FusedMMtime_@(kn)@(pt).o: $(Tdir)/fusedMMtime.cpp fusedMM.h \
+   $(KINCdir)/kernels.h  
 	mkdir -p $(BIN)
 	$(CPP) $(CPPFLAGS) $(TYPFLAGS) -I$(KINCdir) -D@up@(kn)_UDEF \
 	   -DCPP @(pflg) -c $(Tdir)/fusedMMtime.cpp -o $@   
@@ -225,7 +239,8 @@ $(BIN)/$(pre)FusedMMtime_@(kn)@(pt).o: $(Tdir)/fusedMMtime.cpp fusedMM.h $(KINCd
    @whiledef fmm
       @multidef  kn sigmoid tdist fr spmm gcn 
       @whiledef kn
-$(BIN)/x$(pre)@(fmm)time_@(kn)@(pt): $(BIN)/$(pre)FusedMMtime_@(kn)@(pt).o  $(BIN)/$(pre)@(fmm)@(pt).o @(lib)  
+$(BIN)/x$(pre)@(fmm)time_@(kn)@(pt): $(BIN)/$(pre)FusedMMtime_@(kn)@(pt).o \
+   $(BIN)/$(pre)@(fmm)@(pt).o @(lib)  
 	$(CPP) $(CPPFLAGS) -o $@ $^ @(lib) -lm
 	$(BIN)/x$(pre)@(fmm)time_@(kn)@(pt) -input $(data) -T 1 -K $(d)  
       @endwhile
