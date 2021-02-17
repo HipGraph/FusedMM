@@ -175,7 +175,7 @@ chmod u+x $topkdir/rungen.sh
 #
 #  optional: update Makefile of tester/timer with appropriate pre and vlen
 #
-sed -i "s/pre=.*/pre=s/" $topkdir/CONFIG/Makefile.top > Makefile
+sed "s/pre=.*/pre=s/" $topkdir/CONFIG/Makefile.top > Makefile
 sed -i "s/vlen=.*/vlen=$svlen/" Makefile
 #
 #  update number of threads as the number of cores 
