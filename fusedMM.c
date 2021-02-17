@@ -1,7 +1,10 @@
-#include <iostream>
-#include <algorithm>
+#ifdef __cplusplus
+   extern "C"
+   {
+#endif
+#include<stdint.h>
+#include<stdio.h>
 #include <omp.h>
-
 #include"kernels/include/kernels.h"
 #ifdef DREAL
    #define VALUETYPE double
@@ -139,14 +142,14 @@ int KERN_VOP_MIN (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
  * 
  *============================================================================*/
 int KERN_ROP_NOOP (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-      const VALUETYPE *rhs, VALUETYPE &out)
+      const VALUETYPE *rhs, VALUETYPE *out)
 {
    /* Dummy function : no operation */
    return FUSEDMM_SUCCESS_RETURN;
 }
 
 int KERN_ROP_DOT (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-      const VALUETYPE *rhs, VALUETYPE &out)
+      const VALUETYPE *rhs, VALUETYPE *out)
 {
 #ifdef DEBUG 
    if (lhs_dim != rhs_dim)
@@ -155,53 +158,53 @@ int KERN_ROP_DOT (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
       return FUSEDMM_FAIL_RETURN; 
    }
 #endif
-   out = 0.0;
+   *out = 0.0;
    for (INDEXTYPE i = 0; i < lhs_dim; i++)
-      out += lhs[i]*rhs[i];
+      *out += lhs[i]*rhs[i];
 
    return FUSEDMM_SUCCESS_RETURN;
 }
 
 int KERN_ROP_ADD_LHS (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-      const VALUETYPE *rhs, VALUETYPE &out)
+      const VALUETYPE *rhs, VALUETYPE *out)
 {
-   out = 0.0;
+   *out = 0.0;
    for (INDEXTYPE i = 0; i < lhs_dim; i++)
-      out += lhs[i];
+      *out += lhs[i];
    return FUSEDMM_SUCCESS_RETURN;
 }
 
 int KERN_ROP_ADD_RHS (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-      const VALUETYPE *rhs, VALUETYPE &out)
+      const VALUETYPE *rhs, VALUETYPE *out)
 {
-   out = 0.0;
+   *out = 0.0;
    for (INDEXTYPE i = 0; i < rhs_dim; i++)
-      out += rhs[i];
+      *out += rhs[i];
    return FUSEDMM_SUCCESS_RETURN;
 }
 
 int KERN_ROP_NORML (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-      const VALUETYPE *rhs, VALUETYPE &out)
+      const VALUETYPE *rhs, VALUETYPE *out)
 {
-   out = 0.0;
+   *out = 0.0;
    for (INDEXTYPE i = 0; i < rhs_dim; i++)
-      out += lhs[i] * lhs[i];
+      *out += lhs[i] * lhs[i];
    return FUSEDMM_SUCCESS_RETURN;
 }
 
 int KERN_ROP_NORMR (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-      const VALUETYPE *rhs, VALUETYPE &out)
+      const VALUETYPE *rhs, VALUETYPE *out)
 {
-   out = 0.0;
+   *out = 0.0;
    for (INDEXTYPE i = 0; i < rhs_dim; i++)
-      out += rhs[i] * rhs[i];
+      *out += rhs[i] * rhs[i];
    return FUSEDMM_SUCCESS_RETURN;
 }
 /* ============================================================================
  *    SOP operation  
  *       mostly user defined, default NOOP 
  *=============================================================================*/
-int KERN_SOP_NOOP(VALUETYPE val, VALUETYPE &out)
+int KERN_SOP_NOOP(VALUETYPE val, VALUETYPE *out)
 {
    // dummy function to avoid extra checking 
    return FUSEDMM_SUCCESS_RETURN;
@@ -364,8 +367,8 @@ FP_VOP_FUNC GetVOPFunc(int32_t msg)
       case VOP_UDEF: 
          VOP_FUNC = VOP_UDEF_FUNC;
          break;
-      defautl:
-         std::cout << "Unknown VOP Message" << std::endl;
+      default:
+         fprintf(stderr, "Unknown VOP Message\n");
          return NULL; 
    }
    return VOP_FUNC;
@@ -397,8 +400,8 @@ FP_ROP_FUNC GetROPFunc(int32_t msg)
       case ROP_UDEF: 
          ROP_FUNC = ROP_UDEF_FUNC;
          break;
-      defautl:
-         std::cout << "Unknown ROP Message" << std::endl;
+      default:
+         fprintf(stderr, "Unknown ROP Message\n");
          return NULL; 
    }
    return(ROP_FUNC);
@@ -415,8 +418,8 @@ FP_SOP_FUNC GetSOPFunc(int32_t msg)
       case SOP_UDEF: 
          SOP_FUNC = SOP_UDEF_FUNC;
          break;
-      defautl:
-         std::cout << "Unknown SOP Message" << std::endl;
+      default:
+         fprintf(stderr, "Unknown SOP Message\n");
          return NULL; 
    }
    return(SOP_FUNC);
@@ -439,8 +442,8 @@ FP_VSC_FUNC GetVSCFunc(int32_t msg)
       case VSC_UDEF: 
          VSC_FUNC = VSC_UDEF_FUNC;
          break;
-      defautl:
-         std::cout << "Unknown VSC Message" << std::endl;
+      default:
+         fprintf(stderr, "Unknown VSC Message\n");
          return NULL; 
    }
    return(VSC_FUNC);
@@ -467,7 +470,7 @@ FP_AOP_FUNC GetAOPFunc(int32_t msg)
          AOP_FUNC = AOP_UDEF_FUNC;
          break;
       defautl:
-         std::cout << "Unknown AOP Message" << std::endl;
+         fprintf(stderr, "Unknown AOP Message\n");
          return NULL; 
    }
    return(AOP_FUNC);
@@ -498,6 +501,8 @@ int fusedMM_csr
 {
    int status = 0;
 
+#define ENABLE_OPT_FUSEDMM 1 
+
 #ifdef ENABLE_OPT_FUSEDMM
 /* ============================================================================
  * call Predefined optimized kernel (three cases): 
@@ -520,7 +525,6 @@ int fusedMM_csr
          && GET_VSC_FLAG(imessage) == VSC_MUL 
          && GET_AOP_FLAG(imessage) == AOP_ADD)
    {
-      //std::cout << "calling optimized sigmoid" << std::endl;
       #ifdef DREAL 
       dgfusedMM_csr('g', m, n, k, alpha, nnz, rows, cols, val, 
               indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
@@ -539,7 +543,6 @@ int fusedMM_csr
          && GET_VSC_FLAG(imessage) == VSC_MUL 
          && GET_AOP_FLAG(imessage) == AOP_ADD)
    {
-      //std::cout << "calling optimized sigmoid" << std::endl;
       #ifdef DREAL 
       dgfusedMM_csr('m', m, n, k, alpha, nnz, rows, cols, val, 
               indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
@@ -559,7 +562,6 @@ int fusedMM_csr
          && GET_VSC_FLAG(imessage) == VSC_MUL 
          && GET_AOP_FLAG(imessage) == AOP_ADD)
    {
-      //std::cout << "calling optimized sigmoid" << std::endl;
       #ifdef DREAL 
       dgfusedMM_csr('s', m, n, k, alpha, nnz, rows, cols, val, 
               indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
@@ -569,7 +571,25 @@ int fusedMM_csr
       #endif
       return status;
    }
-
+/*
+ * Check for t-dist / FR -> depends on SOP_UDEF  
+ */
+   if ( GET_VOP_FLAG(imessage) == VOP_SUBL 
+         && GET_ROP_FLAG(imessage) == ROP_NORMR
+         && GET_SOP_FLAG(imessage) == SOP_UDEF 
+         && GET_VSC_FLAG(imessage) == VSC_MUL 
+         && GET_AOP_FLAG(imessage) == AOP_ADD)
+   {
+      //fprintf(stdout, "calling optimized t-dist\n");
+      #ifdef DREAL 
+      dgfusedMM_csr('t', m, n, k, alpha, nnz, rows, cols, val, 
+              indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
+      #else
+      sgfusedMM_csr('t', m, n, k, alpha, nnz, rows, cols, val, 
+              indx, pntrb, pntre, x, ldx, y, ldy, beta, z, ldz);   
+      #endif
+      return status;
+   }
 #endif
 /* ===========================================================================*/
 /*
@@ -688,11 +708,11 @@ int fusedMM_csr
          #ifdef DEBUG
             status += 
          #endif
-               ROP_FUNC(k,lhs,k,cT,scal);
+               ROP_FUNC(k,lhs,k,cT, &scal);
          #ifdef DEBUG
             status += 
          #endif
-               SOP_FUNC(scal, out);
+               SOP_FUNC(scal, &out);
          #ifdef DEBUG
             status += 
          #endif
@@ -708,4 +728,8 @@ int fusedMM_csr
 #endif
    return status;
 }
+
+#ifdef __cplusplus
+   } // extern "C"
+#endif
 
