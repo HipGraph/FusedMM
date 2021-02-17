@@ -501,23 +501,21 @@ int fusedMM_csr
 {
    int status = 0;
 
+/*
+ * NOTE: OPT_FUSEDMM will be controlled from Makefile, enable it temporarily. 
+ */
 #define ENABLE_OPT_FUSEDMM 1 
 
 #ifdef ENABLE_OPT_FUSEDMM
 /* ============================================================================
- * call Predefined optimized kernel (three cases): 
- *    1. Detect pattern from message (no UDEF) : spmm, gcn 
- *    2. Detect pattern from message with SOP_UDEF: fr, sigmoid
- *        Since only the scalar computation is user defined, optimized 
- *        implementation can just call this user defined function directly 
- *        without any performance loss. 
- *        For this version, we implemented SOP inside opt kernel for simplicity. 
- *    3. Speciliazed optFusedMM implementation: t-dist
- *        Since we have special scaling operation on vector in one step 
- *        (VSC_UDEF), we implemeneted t-dist as special kernel in optFusedMM  
+ * call Predefined optimized kernel :
+ *    NOTE that optimized kernel can call user defined SOP_UDEF function
+ *    TODO: update parameterized code generator to support all vector ops. 
+ *          For now, we only support VSC_MUL and AOP_ADD which can easily
+ *          be extended for all other vector operations. 
  * ===========================================================================*/
 /*
- * Check for specific GCN pattern
+ * Check for GCN pattern
  */
    if ( GET_VOP_FLAG(imessage) == VOP_COPY_RHS 
          && GET_ROP_FLAG(imessage) == ROP_NOOP 
@@ -535,7 +533,7 @@ int fusedMM_csr
       return status;
    }
 /*
- * Check for specific SPMM 
+ * Check for SPMM 
  */
    if ( GET_VOP_FLAG(imessage) == VOP_COPY_RHS 
          && GET_ROP_FLAG(imessage) == ROP_NOOP 
@@ -554,7 +552,7 @@ int fusedMM_csr
    }
 /*
  * check for sigmoid kernel 
- * FIXME: update gsigmoid to call user define SOP_UDEF  
+ * NOTE: optfusedmm can call SOP_UDEF  
  */
    if ( GET_VOP_FLAG(imessage) == VOP_COPY_RHS 
          && GET_ROP_FLAG(imessage) == ROP_DOT 
@@ -572,7 +570,8 @@ int fusedMM_csr
       return status;
    }
 /*
- * Check for t-dist / FR -> depends on SOP_UDEF  
+ * Check for t-dist / FR : SOP_UDEF may be different
+ * NOTE: optfusedmm calls SOP_UDEF
  */
    if ( GET_VOP_FLAG(imessage) == VOP_SUBL 
          && GET_ROP_FLAG(imessage) == ROP_NORMR
@@ -684,12 +683,10 @@ int fusedMM_csr
       for (INDEXTYPE i = 0; i < m; i++)
 #endif
       {
-         //const VALUETYPE *Xi = x + i * ldx; 
-         const VALUETYPE *lhs = x + i * ldx; 
-         //VALUETYPE *Zi = z + i * ldz; 
-         VALUETYPE *O = z + i * ldz; 
+         const VALUETYPE *lhs = x + i * ldx; // Xi 
+         VALUETYPE *O = z + i * ldz;  // Zi
 #ifndef LOAD_BALANCE
-         // ASSUMPTION: dimension k is small enough to fit in stack, 
+         // ASSUMPTION: feature dimension k is small enough to fit in stack, 
          //    need to use some efficient allocator otherwise  
          VALUETYPE T[k]; /* temporary space to hold result of vector compute */
 #endif
@@ -697,9 +694,7 @@ int fusedMM_csr
          {
             VALUETYPE scal, out; 
             const VALUETYPE *cT = T; /* where T is const */ 
-            // assumming K is small enough to not overflow stack
             INDEXTYPE cid = indx[j];
-            //const VALUETYPE *yj = y + cid * ldy; 
             const VALUETYPE *rhs = y + cid * ldy; 
          #ifdef DEBUG
             status += 
