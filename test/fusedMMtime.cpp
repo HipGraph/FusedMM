@@ -187,12 +187,21 @@ void SDDMMSPMMCsrTdist
             T[k] = X[iindex + k] - Y[jindex + k];
             attrc += T[k] * T[k];
          }
+      #if 0
          DType d1 = -2.0 / (1.0 + attrc);
          for (int64_t k = 0; k < dim; ++k) 
          {
             T[k] = scale<DType>(T[k] * d1);
             O[iindex+k] = O[iindex+k]  + T[k];
          }
+      #else
+         DType d1 = scale<DType>(-2.0 / (1.0 + attrc));
+         for (int64_t k = 0; k < dim; ++k) 
+         {
+            T[k] = T[k] * d1;
+            O[iindex+k] = O[iindex+k]  + T[k];
+         }
+      #endif
       }
    }
 }
@@ -605,44 +614,54 @@ VALUETYPE ufast_SM(VALUETYPE v)
    return SM_TABLE[(INDEXTYPE)((v + SM_BOUND) * SM_RESOLUTION)];
 }
 
+VALUETYPE tscale(VALUETYPE v)
+{
+   if(v > SM_BOUND) return SM_BOUND;
+   else if(v < -SM_BOUND) return -SM_BOUND;
+   return v;
+}
+
 /*
  * NOTE: implementation of User defined functions differ from different model.
  * We need to enable disable it compile time!!!!
  * FIXME: How to select them runtime 
  */
-#define ENABLE_SIGMOID 1  /* enable sigmoid */
 
+extern "C" int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out);
+
+//#define ENABLE_SIGMOID 1  /* enable sigmoid */
+#define ENABLE_TDIST 1  /* enable sigmoid */
 #ifdef ENABLE_SIGMOID 
 // USER DEFINED FUNCTION for SOP with Sigmoid calc 
-int  SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
+int  SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
    out = 1.0 - ufast_SM(val);
    return FUSEDMM_SUCCESS_RETURN;
 }
 #elif defined(ENABLE_FR)
 // SOP_UDEF for FR model
-int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
    out = 1.0 + 1.0 / val;
    return FUSEDMM_SUCCESS_RETURN;
 }
 #elif defined(ENABLE_TDIST)
 // SOP_UDEF for t-distribution  model
-int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {  
-   out = scale(2.0 / (1.0 + val));
+   *out = tscale(-2.0 / (1.0 + val));
    return FUSEDMM_SUCCESS_RETURN;
 }
 #elif defined(ENABLE_LL)
 // SOP_UDEF for LL model
-int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
    out = log2(1 + sqrt(val));;
    return FUSEDMM_SUCCESS_RETURN;
 }
 #elif defined(ENABLE_FA)
 // SOP_UDEF for FA model
-int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out)
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
    out = sqrt(val) + 1.0 / val;;
    return FUSEDMM_SUCCESS_RETURN;

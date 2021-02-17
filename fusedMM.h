@@ -1,6 +1,10 @@
 #ifndef FUSED_SDMM_SPMM_KERNEL_H
 #define FUSED_SDMM_SPMM_KERNEL_H
 
+#ifdef __cplusplus
+   extern "C"
+   {
+#endif 
 /*
  * Messages for different operations
  *    VOP message : x0~xF
@@ -127,11 +131,15 @@ int fusedMM_csr
 int VOP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
       const VALUETYPE *rhs, INDEXTYPE out_dim, VALUETYPE *out); 
 int ROP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-      const VALUETYPE *rhs, VALUETYPE &out); 
-int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out); 
+      const VALUETYPE *rhs, VALUETYPE *out); 
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out); 
 int VSC_UDEF_FUNC(INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE scal, 
       INDEXTYPE out_dim, VALUETYPE *out); 
 int AOP_UDEF_FUNC(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
       VALUETYPE *out); 
+
+#ifdef __cplusplus
+   }  // extern "C"
+#endif
 
 #endif /* end of FUSED_SDMM_SPMM_KERNEL_H */

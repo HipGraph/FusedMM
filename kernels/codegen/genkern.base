@@ -18,7 +18,6 @@
 @PRE D
 #define DREAL 1
 @PRE !
-/*#include"../include/@(pre)gmisc.h"*/
 #include"../../simd/simd.h"
 @define pre @@(@pre)@
 @SKIP ******** dim must be multiple of VLEN ***** 
@@ -111,6 +110,7 @@
  */
    @RBLK !
 @ROUT tdist 
+extern int SOP_UDEF_FUNC(@(typ) val, @(typ) *out);  
 /*extern INDEXTYPE MAXBOUND ;*/
 #ifdef BETA0
 void @(pre)gfusedMM_K@(DIM)_tdist_b0_csr
@@ -193,8 +193,6 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
 
 @ROUT tdist
 #if 0
-   const int maxbound = MAXBOUND;
-#else
    const @(typ) maxbound = 5.0;
 #endif
 @ROUT ! 
@@ -282,8 +280,10 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
       @(typ) T[k-@(DIM)];
    @endiif
 @SKIP ************* tdist kruntime ends ************
+#if 0
       BCL_vset1(VMAXBOUND, maxbound); 
       BCL_vset1(VMINBOUND, -maxbound); 
+#endif
 @ROUT sigmoid 
       BCL_vset1(VMAXBOUND, sm_bound); 
       BCL_vset1(VMINBOUND, -sm_bound); 
@@ -477,18 +477,27 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
          }
    @endiif
 @SKIP ************* tdist kruntime ends ************
+#if 0
          BCL_vset1(Vatt0, attrc); // a = a
          BCL_vset1(Vt, 1.0f); // t = 1.0
          BCL_vadd(Vatt0, Vatt0, Vt); // a = 1.0 + a
          BCL_vrcp(Vatt0, Vatt0); // a = 1/a
          BCL_vset1(Vt, -2.0f); // t = -2
          BCL_vmul(Vatt0, Vatt0, Vt); // a = -2 * a
+@SKIP ***** NOTE: new logic... scalling here
+         BCL_vmax(Vatt0, Vatt0, VMINBOUND);
+         BCL_vmin(Vatt0, Vatt0, VMAXBOUND); 
+#else
+         SOP_UDEF_FUNC(attrc, &attrc);
+         BCL_vset1(Vatt0, attrc); 
+#endif
       // vmul 
    @iexp i 0
    @iwhile i < @(rdim)
          BCL_vmul(Vd@(i), Vatt0, Vd@(i));
       @iexp i @(i) 1 +
    @endiwhile
+@BEGINSKIP -----------------------------------------------------
       // scaling of attrc 
    @iexp i 0
    @iwhile i < @(rdim)
@@ -500,6 +509,7 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
          BCL_vmin(Vd@(i), Vd@(i), VMAXBOUND);
       @iexp i @(i) 1 +
    @endiwhile
+@ENDSKIP --------------------------------------------------------------
       // vadd 
    @iexp i 0
    @iwhile i < @(rdim)
@@ -508,13 +518,20 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
    @endiwhile
 @SKIP ************* tdist kruntime begins ************
    @iif kruntime ! 0
+#if 0
          attrc = Vatt0[0]; 
+   @SKIP *** NOTE: new logic 
+         attrc = (attrc > maxbound) ? maxbound : attrc;
+         attrc = (attrc < -maxbound) ? -maxbound : attrc;
+#endif    
          for (INDEXTYPE kk = @(DIM); kk < k; kk++)
          {
             @(typ) t0; 
             t0 = T[kk-@(DIM)] * attrc;
+         #if 0
             t0 = (t0 > maxbound) ? maxbound : t0;
             t0 = (t0 < -maxbound) ? -maxbound : t0;
+         #endif
             Ci[kk] += t0;
          }
    @endiif

@@ -1,5 +1,11 @@
 #ifndef FUSED_SDMM_SPMM_INTERNAL_H
 #define FUSED_SDMM_SPMM_INTERNAL_H
+
+#ifdef __cplusplus
+   extern "C"
+   {
+#endif
+
 /*
  * NOTE: 
  * This header file is meant for internal use to implement the general kernel,
@@ -14,9 +20,9 @@ typedef int (*FP_VOP_UDEF_FUNC)(INDEXTYPE lhs_dim, const VALUETYPE *lhs,
       VALUETYPE *out); 
 
 typedef int (*FP_ROP_UDEF_FUNC)(INDEXTYPE lhs_dim, const VALUETYPE *lhs, 
-      INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE &out); 
+      INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE *out); 
 
-typedef int (*FP_SOP_UDEF_FUNC)(VALUETYPE val, VALUETYPE &out); 
+typedef int (*FP_SOP_UDEF_FUNC)(VALUETYPE val, VALUETYPE *out); 
 
 typedef int (*FP_VSC_UDEF_FUNC)(INDEXTYPE rhs_dim, const VALUETYPE *rhs, 
       VALUETYPE scal, INDEXTYPE out_dim, VALUETYPE *out); 
@@ -30,8 +36,8 @@ typedef int (*FP_VOP_FUNC)(INDEXTYPE lhs_dim, const VALUETYPE *lhs,
       INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
       VALUETYPE *out); 
 typedef int (*FP_ROP_FUNC)(INDEXTYPE lhs_dim, const VALUETYPE *lhs, 
-      INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE &out); 
-typedef int (*FP_SOP_FUNC)(VALUETYPE val, VALUETYPE &out); 
+      INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE *out); 
+typedef int (*FP_SOP_FUNC)(VALUETYPE val, VALUETYPE *out); 
 typedef int (*FP_VSC_FUNC)(INDEXTYPE rhs_dim, const VALUETYPE *rhs, 
       VALUETYPE scal, INDEXTYPE out_dim, VALUETYPE *out); 
 typedef int (*FP_AOP_FUNC)(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim, 
@@ -50,14 +56,14 @@ int VOP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
 #endif
 #ifndef ROP_UDEF_IMPL 
 int ROP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim, 
-      const VALUETYPE *rhs, VALUETYPE &out) 
+      const VALUETYPE *rhs, VALUETYPE *out) 
 {
    return FUSEDMM_UNDEFINED_USER_FUNCTION;  
 }
 #endif
 
 #ifndef SOP_UDEF_IMPL 
-int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE &out) 
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out) 
 {
    return FUSEDMM_UNDEFINED_USER_FUNCTION;  
 }
@@ -75,6 +81,10 @@ int AOP_UDEF_FUNC(INDEXTYPE rhs_dim, const VALUETYPE *rhs, INDEXTYPE out_dim,
 {
    return FUSEDMM_UNDEFINED_USER_FUNCTION;  
 }
+#endif
+
+#ifdef __cplusplus
+   } // extern "C"
 #endif
 
 #endif /* end of FUSED_SDMM_SPMM_INTERNAL_H */
