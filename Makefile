@@ -41,7 +41,7 @@ mdim=1024
 kruntime=1   # 0 means K compile time, used in tuning phase  
 bestK=512    # needed when kruntime=1, normally got from tuning step  
 
-kern=t   # t = tdist/fr, s = sigmoid, m = spmm, g = gcn 
+kern=s   # t = tdist/fr, s = sigmoid, m = spmm, g = gcn 
 #setup flags based on type 
 ifeq ($(pre), d)
    dtyp=-DDREAL

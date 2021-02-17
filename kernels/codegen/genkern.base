@@ -118,13 +118,10 @@ void @(pre)gfusedMM_K@(DIM)_tdist_b0_csr
 void @(pre)gfusedMM_K@(DIM)_tdist_b1_csr
 #endif
 @ROUT sigmoid
-/* external declaration of misc functions  */
-#if 0
-extern INDEXTYPE SM_BOUND ;
-extern INDEXTYPE SM_TABLE_SIZE ;
-extern INDEXTYPE SM_RESOLUTION ;
-extern void init_@(pre)SM_TABLE(@(typ) *sm_table);
+#ifndef SOP_INHOUSE 
+extern int SOP_UDEF_FUNC(@(typ) val, @(typ) *out);  
 #endif
+/* external declaration of misc functions  */
 #ifdef BETA0 
 void @(pre)gfusedMM_K@(DIM)_sigmoid_b0_csr
 #else /* BETA1 version */
@@ -166,6 +163,7 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
 )
 {
 @ROUT sigmoid
+#ifdef SOP_INHOUSE
    const @(typ) sm_bound = 5.0;
    const int sm_table_size = 2048;
    const @(typ) sm_resolution = sm_table_size/(2.0 * sm_bound);
@@ -178,9 +176,6 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
               sm_table_size);
       exit(0);
    }
-#if 0
-   init_@(pre)SM_TABLE(sm_table);
-#else
    { // init_sm_table 
       for(INDEXTYPE i = 0; i < sm_table_size; i++)
       {
@@ -190,7 +185,6 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
       }
    }
 #endif
-
 @ROUT tdist
 #if 0
    const @(typ) maxbound = 5.0;
@@ -285,8 +279,10 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
       BCL_vset1(VMINBOUND, -maxbound); 
 #endif
 @ROUT sigmoid 
+#ifdef SOP_INHOUSE
       BCL_vset1(VMAXBOUND, sm_bound); 
       BCL_vset1(VMINBOUND, -sm_bound); 
+#endif
 @ROUT !
 #ifdef BETA0
 /*
@@ -544,6 +540,7 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
             attrc += Ai[kk] * Bj[kk];   
 @endiif
 @SKIP ************* sigmoid kruntime ends ************
+#ifdef SOP_INHOUSE
          /* Calculating Sigmoid value */
          { // fast_SM 
             //d1 = fast_SM(attrc, sm_table);
@@ -553,6 +550,9 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
          }
          //d1 = STEP * degi * (1.0 - d1);
          d1 = (1.0 - d1);
+#else
+         SOP_UDEF_FUNC(attrc, &d1);
+#endif
          BCL_vset1(Vd1, d1);
          // vmac 
    @iexp i 0
@@ -584,6 +584,8 @@ void @(pre)gfusedMM_K@(DIM)_gcn_b1_csr
    }
 #endif
 @ROUT sigmoid
+#ifdef SOP_INHOUSE
    free(sm_table);
+#endif
 @ROUT ! 
 }

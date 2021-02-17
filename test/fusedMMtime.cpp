@@ -629,20 +629,20 @@ VALUETYPE tscale(VALUETYPE v)
 
 extern "C" int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out);
 
-//#define ENABLE_SIGMOID 1  /* enable sigmoid */
-#define ENABLE_TDIST 1  /* enable sigmoid */
+#define ENABLE_SIGMOID 1  /* enable sigmoid */
+//#define ENABLE_TDIST 1  /* enable sigmoid */
 #ifdef ENABLE_SIGMOID 
 // USER DEFINED FUNCTION for SOP with Sigmoid calc 
 int  SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
-   out = 1.0 - ufast_SM(val);
+   *out = 1.0 - ufast_SM(val);
    return FUSEDMM_SUCCESS_RETURN;
 }
 #elif defined(ENABLE_FR)
 // SOP_UDEF for FR model
 int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
-   out = 1.0 + 1.0 / val;
+   *out = 1.0 + 1.0 / val;
    return FUSEDMM_SUCCESS_RETURN;
 }
 #elif defined(ENABLE_TDIST)
@@ -656,14 +656,14 @@ int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 // SOP_UDEF for LL model
 int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
-   out = log2(1 + sqrt(val));;
+   *out = log2(1 + sqrt(val));;
    return FUSEDMM_SUCCESS_RETURN;
 }
 #elif defined(ENABLE_FA)
 // SOP_UDEF for FA model
 int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
-   out = sqrt(val) + 1.0 / val;;
+   *out = sqrt(val) + 1.0 / val;;
    return FUSEDMM_SUCCESS_RETURN;
 } 
 #endif
