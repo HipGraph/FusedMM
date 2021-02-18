@@ -501,11 +501,6 @@ int fusedMM_csr
 {
    int status = 0;
 
-/*
- * NOTE: OPT_FUSEDMM will be controlled from Makefile, enable it temporarily. 
- */
-#define ENABLE_OPT_FUSEDMM 1 
-
 #ifdef ENABLE_OPT_FUSEDMM
 /* ============================================================================
  * call Predefined optimized kernel :
@@ -589,6 +584,16 @@ int fusedMM_csr
       #endif
       return status;
    }
+/*
+ * Reaching here means, we don't have matching optFusedMM. By default, we call
+ * general
+ */
+   #ifdef MUST_OPT_FUSEDMM
+      fprintf(stderr, "NO opt implementation for this message! \n");
+      fprintf(stderr, 
+            "Run the general FusedMM by not enabling ENABLE_OPT_FUSEDMM\n");
+      return FUSEDMM_NO_OPT_IMPL;
+   #endif
 #endif
 /* ===========================================================================*/
 /*
@@ -696,6 +701,11 @@ int fusedMM_csr
             const VALUETYPE *cT = T; /* where T is const */ 
             INDEXTYPE cid = indx[j];
             const VALUETYPE *rhs = y + cid * ldy; 
+/*
+ *          scal init with val be default to manage SPMM type operation
+ *          It will be overwritten when ROP is used 
+ */
+            scal = val[j];
          #ifdef DEBUG
             status += 
          #endif

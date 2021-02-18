@@ -26,16 +26,7 @@ then
       exit 1
    fi
 fi
-
 topkdir=$topdir/kernels
-vtopkdir="TOP = $topkdir"
-
-#
-#  replace old TOP with current dir 
-#
-oldtop="TOP ="
-newtop=$vtopkdir
-sed "s|$oldtop|$newtop|g" $topkdir/CONFIG/Make.top > $topkdir/Make.inc 
 
 #
 #  compiler 
@@ -49,6 +40,26 @@ then
 fi
 echo "--- $cc"
 cc=gcc
+
+#
+# create makefiles
+#  TODO: we will diectly create the updated Makefiles from basefile
+#        No need to generate then edit...
+#
+$cc -O3 -o $topkdir/bin/xextract $topkdir/codegen/extract.c
+ext=$topkdir/bin/xextract
+mbase=$topkdir/CONFIG/make.base
+$ext -b $topkdir/CONFIG/make.base -langM rout=make.inc -o $topkdir/Make.inc 
+$ext -b $topkdir/CONFIG/make.base -langM rout=make.kern -o $topkdir/Makefile 
+$ext -b $topkdir/CONFIG/make.base -langM rout=make.top -o $topdir/Makefile 
+
+#
+#  replace old TOP with current dir 
+#
+vtopkdir="TOP = $topkdir"
+oldtop="TOP ="
+newtop=$vtopkdir
+sed -i "s|$oldtop|$newtop|g" $topkdir/Make.inc 
 
 oldkcc="KCC ="
 newkcc="KCC = $cc"
@@ -175,7 +186,7 @@ chmod u+x $topkdir/rungen.sh
 #
 #  optional: update Makefile of tester/timer with appropriate pre and vlen
 #
-sed "s/pre=.*/pre=s/" $topkdir/CONFIG/Makefile.top > Makefile
+sed -i "s/pre=.*/pre=s/" $topkdir/CONFIG/Makefile
 sed -i "s/vlen=.*/vlen=$svlen/" Makefile
 #
 #  update number of threads as the number of cores 

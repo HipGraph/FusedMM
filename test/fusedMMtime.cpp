@@ -278,7 +278,8 @@ void TrustedFR
          DType attrc = 0;
          for (int64_t k = 0; k < dim; ++k) 
          {
-            T[k] = Y[jindex + k] - X[iindex + k];
+            //T[k] = Y[jindex + k] - X[iindex + k];
+            T[k] = X[jindex + k] - Y[iindex + k];  // need to verify 
             attrc += T[k] * T[k];
          }
          DType d1 = 1.0 + 1.0 / attrc;
@@ -628,49 +629,60 @@ VALUETYPE tscale(VALUETYPE v)
  */
 
 extern "C" int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out);
-
-#define ENABLE_SIGMOID 1  /* enable sigmoid */
-//#define ENABLE_TDIST 1  /* enable sigmoid */
-#ifdef ENABLE_SIGMOID 
+#ifdef SIGMOID_UDEF 
 // USER DEFINED FUNCTION for SOP with Sigmoid calc 
 int  SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
    *out = 1.0 - ufast_SM(val);
    return FUSEDMM_SUCCESS_RETURN;
 }
-#elif defined(ENABLE_FR)
+#elif defined(FR_UDEF)
 // SOP_UDEF for FR model
 int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
    *out = 1.0 + 1.0 / val;
    return FUSEDMM_SUCCESS_RETURN;
 }
-#elif defined(ENABLE_TDIST)
+#elif defined(TDIST_UDEF)
 // SOP_UDEF for t-distribution  model
 int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {  
    *out = tscale(-2.0 / (1.0 + val));
    return FUSEDMM_SUCCESS_RETURN;
 }
-#elif defined(ENABLE_LL)
+#elif defined(LL_UDEF)
 // SOP_UDEF for LL model
 int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
    *out = log2(1 + sqrt(val));;
    return FUSEDMM_SUCCESS_RETURN;
 }
-#elif defined(ENABLE_FA)
+#elif defined(FA_UDEF)
 // SOP_UDEF for FA model
 int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
    *out = sqrt(val) + 1.0 / val;;
    return FUSEDMM_SUCCESS_RETURN;
 } 
+#else 
+/*
+ * NOTE: other kernels don't use SOP funciton (NOOP or COPY)
+ * However, since we enable SOP_UDEF_IMPL in fusedMM.h, we need a dummy func.
+ * Normally, users should disable the macro if they don't want to provide any 
+ * implementation. We are using this dummy since we use same source for all 
+ * the different executables.
+ * NOTE: don't use _gcn to run sigmoid kernel
+ */
+int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
+{
+   *out = val;;
+   return FUSEDMM_SUCCESS_RETURN;
+} 
 #endif
+#if 0
 /*
  * User defined function for ROP to perform self-DOT product
  */
-#if 0
 int ROP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
       const VALUETYPE *rhs, VALUETYPE &out)
 {
@@ -1799,12 +1811,29 @@ void GetFlags(int narg, char **argv, string &inputfile, int &option,
    inputfile = "";
    K = 128; 
    M = 0;
+/*
+ * default kernel based on macro now
+ */
+#if defined(SIGMOID_UDEF)
    tkern = 's';
+#elif defined(TDIST_UDEF)
+   tkern = 't';
+#elif defined(GCN_UDEF)
+   tkern = 'g';
+#elif defined(SPMM_UDEF)
+   tkern = 'm';
+#elif defined(FR_UDEF)
+   tkern = 'f';
+#else
+   tkern = 's';
+#endif
+
    isTest = 0; 
    nrep = 20;
    //nrblk = 1;
    skHd = 0; // by default print header
    csKB = 25344; // L3 in KB 
+   
    // alphaX, betaX would be the worst case for our implementation  
    ialpha=1; 
    alpha=1.0; 
