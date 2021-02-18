@@ -46,6 +46,7 @@ cc=gcc
 #  TODO: we will diectly create the updated Makefiles from basefile
 #        No need to generate then edit...
 #
+mkdir -p $topkdir/bin
 $cc -O3 -o $topkdir/bin/xextract $topkdir/codegen/extract.c
 ext=$topkdir/bin/xextract
 mbase=$topkdir/CONFIG/make.base
