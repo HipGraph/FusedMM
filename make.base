@@ -60,7 +60,82 @@
    ARCH = 
    SIMD =  
    ARCHFLAGS = -DBLC_ARCH -D$(ARCH) -D$(SIMD)  
+@SKIP **************************************************************************
+@ROUT make.kern 
+include Make.inc 
 
+# precision float=s, double=d 
+pre = 
+ibit=64
+
+# dimension or value of compile-time K, mdim = max dimension  
+mdim = 128
+dim = 4
+nthds =  
+# Register blocking strategy: 
+#    bacrb: regblk all access, acrb: regblk a and c, crb: regblk only c
+#regblk=bacrb
+#regblk=acrb
+regblk=crb
+
+kruntime=0
+bestK=64    # needed when kruntime = 1
+
+@declare "header: " y n 
+@multidef  kn sigmoid tdist fr spmm gcn
+@whiledef kn
+   $(GENINCdir)/$(pre)gkernels_@(kn)_csr.h
+@endwhile
+   $(GENINCdir)/$(pre)gmisc.h
+@enddeclare 
+
+gmakefile : $(GENdir)/Makefile
+
+@declare "srcfile: " y n 
+@multidef  kn sigmoid tdist spmm gcn
+@whiledef kn
+   $(GENSRCdir)/$(pre)gfusedMM_K$(dim)_@(kn)_csr.c
+@endwhile
+   $(GENINCdir)/$(pre)gmisc.h
+@enddeclare 
+
+libfile : staticlibs  
+
+$(BINdir)/xextract: $(CGENdir)/extract.c 
+	make -p $(CGENdir) 
+	$(CC) $(CFLAGS) -o $@ $(CGENdir)/extract.c 
+
+$(GENdir)/Makefile : $(BINdir)/xextract $(CGENdir)/genmake.base 
+	$(BINdir)/xextract -b $(CGENdir)/genmake.base -langM -def MDIM $(mdim) \
+	   pre=$(pre) -def VLEN $(vlen) -def ityp $(ibit) -def nthds $(nthds) \
+	   -o $@  
+$(GENINCdir)/$(pre)gmisc.h : $(BINdir)/xextract $(CGENdir)/genheader.base 
+	$(BINdir)/xextract -b $(CGENdir)/genheader.base -langC \
+	   pre=$(pre) rout=misc -o $@  
+
+@multidef  kn sigmoid tdist spmm gcn
+@whiledef kn
+$(GENINCdir)/$(pre)gkernels_@(kn).h : $(BINdir)/xextract $(CGENdir)/genheader.base 
+	$(BINdir)/xextract -b $(CGENdir)/genheader.base -langC \
+	   -def MDIM $(mdim) pre=$(pre) -def VLEN $(vlen) rout=ghead \
+	   -def frc @(kn) -def kruntime $(kruntime) -def bestK $(bestK) -o $@  
+$(GENSRCdir)/$(pre)gfusedMM_K$(dim)_@(kn)_csr.c : $(BINdir)/xextract $(CGENdir)/genkern.base
+	$(BINdir)/xextract -b $(CGENdir)/genkern.base -langC -def DIM $(dim) \
+	   pre=$(pre) rblk=$(regblk) -def VLEN $(vlen) rout=@(kn) \
+	   -def kruntime $(kruntime) -o $@  
+@endwhile
+
+staticlibs: 
+	cd $(GENdir) ; make 
+
+clean:
+	rm -f $(GENSRCdir)/$(pre)*.c $(GENSRCdir)/$(pre)*.o $(GENdir)/Makefile \
+		$(GENINCdir)/*.h $(LIBdir)/$(pre)*.a \
+		$(BINdir)/$(pre)*.o 
+kill:
+	rm -f $(BINdir)/xextract 
+
+@SKIP **************************************************************************
 @ROUT make.top
 #
 #  Top Makefile to run, test and time FUSEDMM 
