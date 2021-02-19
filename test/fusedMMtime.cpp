@@ -279,10 +279,10 @@ void TrustedFR
          for (int64_t k = 0; k < dim; ++k) 
          {
             //T[k] = Y[jindex + k] - X[iindex + k];
-            T[k] = X[jindex + k] - Y[iindex + k];  // need to verify 
+            T[k] = X[iindex + k] - Y[jindex + k];  // need to verify 
             attrc += T[k] * T[k];
          }
-         DType d1 = 1.0 + 1.0 / attrc;
+         DType d1 = 1.0 + 1.0 / attrc;  // NOTE: do we need to mult by -1?  
          for (int64_t k = 0; k < dim; ++k) 
          {
             O[iindex+k] = O[iindex+k]  + d1 * T[k];
@@ -683,6 +683,7 @@ int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 /*
  * User defined function for ROP to perform self-DOT product
  */
+// tdist 
 int ROP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
       const VALUETYPE *rhs, VALUETYPE &out)
 {
@@ -693,6 +694,7 @@ int ROP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
    }  
    return FUSEDMM_SUCCESS_RETURN;
 }
+// tdist 
 int VSC_UDEF_FUNC(INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE scal,
       INDEXTYPE out_dim, VALUETYPE *out)
 {
@@ -732,13 +734,13 @@ void mytest_csr
    switch(tkern)
    {
       case 't' : // t-dist 
-	 imsg = VOP_SUBL | ROP_NORMR | SOP_UDEF | VSC_MUL | AOP_ADD;
+	 imsg = VOP_SUBR | ROP_NORMR | SOP_UDEF | VSC_MUL | AOP_ADD;
 	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
                pntre, a, lda, b, ldb, beta, c, ldc);
          break;
       case 'f':
          //printf("Calling FR model!");
-	 imsg = VOP_SUBL | ROP_NORMR | SOP_UDEF | VSC_MUL | AOP_ADD;
+	 imsg = VOP_SUBR | ROP_NORMR | SOP_UDEF | VSC_MUL | AOP_ADD;
 	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
                pntre, a, lda, b, ldb, beta, c, ldc);
 	 break;

@@ -576,7 +576,7 @@ int fusedMM_csr
  * Check for t-dist / FR : SOP_UDEF may be different
  * NOTE: optfusedmm calls SOP_UDEF
  */
-   if ( GET_VOP_FLAG(imessage) == VOP_SUBL 
+   if ( GET_VOP_FLAG(imessage) == VOP_SUBR 
          && GET_ROP_FLAG(imessage) == ROP_NORMR
          && GET_SOP_FLAG(imessage) == SOP_UDEF 
          && GET_VSC_FLAG(imessage) == VSC_MUL 
