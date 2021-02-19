@@ -187,12 +187,12 @@ chmod u+x $topkdir/rungen.sh
 #
 #  optional: update Makefile of tester/timer with appropriate pre and vlen
 #
-sed -i "s/pre=.*/pre=s/" $topkdir/Makefile
-sed -i "s/vlen=.*/vlen=$svlen/" Makefile
+sed -i "s/pre=.*/pre=s/" $topdir/Makefile
+sed -i "s/vlen=.*/vlen=$svlen/" $topdir/Makefile
 #
 #  update number of threads as the number of cores 
 #
 nth=`grep 'cpu cores' /proc/cpuinfo | uniq | cut -d ':' -f 2 -s`
-sed -i "s/NTHREADS=48/NTHREADS=$nth/" Makefile
+sed -i "s/NTHREADS=48/NTHREADS=$nth/" $topdir/Makefile
 
 echo "Done configure"
