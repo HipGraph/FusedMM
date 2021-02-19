@@ -29,17 +29,33 @@ fi
 topkdir=$topdir/kernels
 
 #
+#  MacOS uses different commands
+#
+OSGUESS=`uname`
+#
 #  compiler 
 #
 echo "Checking for gcc ... ... "
 cc=`gcc --version | grep -e gcc`
 if [ -z "$cc" ]
 then
-   echo "gcc is required!"
-   exit 1
+   flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
+   if test "$flag" != OSGUESS
+   then 
+      echo "MacOS uses clang by default"
+      cc=`clang --version | grep clang`
+      if [ -z "$cc" ]
+      then
+         echo "Atleast clang is required on MacOS!"
+         exit 1
+      fi
+   else
+      echo "gcc is required!"
+      exit 1
+   fi
 fi
 echo "--- $cc"
-cc=gcc
+cc=gcc    # gcc command should work on macOS even it's using clang 
 
 #
 # create makefiles
@@ -70,16 +86,29 @@ sed -i "s/$oldkcc/$newkcc/g" $topkdir/Make.inc
 #  find system arch 
 #
 echo "Figuring out the architecture of the system ... ... "
-carch=`lscpu | grep -e x86`
-arch=X86
-if [ -z "$carch" ]
+# if macOS 
+flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
+if test "$flag" != OSGUESS
 then
-   # check whether it is arch64
-   carch=`lscpu | grep -e aarch64`
-   arch=ARM64
+   carch=`sysctl -a | grep -e X86`
+   # only X86 supported for MacOS for now 
+   arch=X86
    if [ -z "$carch" ]
    then
       arch=
+   fi
+else  # other: only considered LINUX 
+   carch=`lscpu | grep -e x86`
+   arch=X86
+   if [ -z "$carch" ]
+   then
+      # check whether it is arch64
+      carch=`lscpu | grep -e aarch64`
+      arch=ARM64
+      if [ -z "$carch" ]
+      then
+         arch=
+      fi
    fi
 fi
 
@@ -105,15 +134,30 @@ svlen=
 dvlen=
 if  test "$arch" = "BLC_X86" 
 then
-   csimdf=`lscpu | grep -e avx512f`
-   csimddq=`lscpu | grep -e avx512dq`
+   # macOS uses different commands  
+   flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
+   if test "$flag" != OSGUESS
+   then
+      csimdf=`sysctl -a | grep -e avx512f | cut -d':' -f 2 | grep 1`
+      csimddq=`sysctl -a | grep -e avx512dq | cut -d':' -f 2 | grep 1`
+   else
+      csimdf=`lscpu | grep -e avx512f`
+      csimddq=`lscpu | grep -e avx512dq`
+   fi
    simd=AVXZ
    svlen=16
    dvlen=8
    cflags="-mavx512f -mavx512dq"
    if [ -z "$csimdf" ] || [ -z "$csimddq" ]
    then
-      csimd=`lscpu | grep -e avx2`
+      # macOS uses different commands  
+      flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
+      if test "$flag" != OSGUESS
+      then
+         csimd=`sysctl -a | grep -e avx2 | cut -d':' -f 2 | grep 1`
+      else
+         csimd=`lscpu | grep -e avx2`
+      fi
       simd=AVX2
       svlen=8
       dvlen=4
@@ -122,14 +166,28 @@ then
       then
          simd=AVX
          cflags="-mavx"
-         csimd=`lscpu | grep -e avx`
+         # macOS uses different commands  
+         flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
+         if test "$flag" != OSGUESS
+         then
+            csimd=`sysctl -a | grep -e avx | cut -d':' -f 2 | grep 1`
+         else
+            csimd=`lscpu | grep -e avx`
+         fi
          if [ -z "$csimd" ] 
          then
             simd=SSE
             svlen=4
             dvlen=2
             cflags="-msse"
-            csimd=`lscpu | grep -e sse`
+            # macOS uses different commands  
+            flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
+            if test "$flag" != OSGUESS
+            then
+               csimd=`sysctl -a | grep -e sse | cut -d':' -f 2 | grep 1`
+            else
+               csimd=`lscpu | grep -e sse`
+            fi
             if [ -z "$csimd" ] 
             then
                simd=
@@ -192,7 +250,16 @@ sed -i "s/vlen=.*/vlen=$svlen/" $topdir/Makefile
 #
 #  update number of threads as the number of cores 
 #
-nth=`grep 'cpu cores' /proc/cpuinfo | uniq | cut -d ':' -f 2 -s`
+# macOS uses different commands  
+flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
+if test "$flag" != OSGUESS
+then
+   nth=`sysctl -a| grep core_count | cut -d ':' -f 2`
+else
+   nth=`grep 'cpu cores' /proc/cpuinfo | uniq | cut -d ':' -f 2 -s`
+fi
+nth=`sed 's. ..g' <<<$nth` 
+#echo $nth
 sed -i "s/NTHREADS=48/NTHREADS=$nth/" $topdir/Makefile
 
 echo "Done configure"
