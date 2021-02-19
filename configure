@@ -40,7 +40,7 @@ cc=`gcc --version | grep -e gcc`
 if [ -z "$cc" ]
 then
    flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
-   if test "$flag" != OSGUESS
+   if test "$flag" != $OSGUESS
    then 
       echo "MacOS uses clang by default"
       cc=`clang --version | grep clang`
@@ -88,7 +88,7 @@ sed -i "s/$oldkcc/$newkcc/g" $topkdir/Make.inc
 echo "Figuring out the architecture of the system ... ... "
 # if macOS 
 flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
-if test "$flag" != OSGUESS
+if test "$flag" != $OSGUESS
 then
    carch=`sysctl -a | grep -e X86`
    # only X86 supported for MacOS for now 
@@ -136,7 +136,7 @@ if  test "$arch" = "BLC_X86"
 then
    # macOS uses different commands  
    flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
-   if test "$flag" != OSGUESS
+   if test "$flag" != $OSGUESS
    then
       csimdf=`sysctl -a | grep -e avx512f | cut -d':' -f 2 | grep 1`
       csimddq=`sysctl -a | grep -e avx512dq | cut -d':' -f 2 | grep 1`
@@ -152,7 +152,7 @@ then
    then
       # macOS uses different commands  
       flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
-      if test "$flag" != OSGUESS
+      if test "$flag" != $OSGUESS
       then
          csimd=`sysctl -a | grep -e avx2 | cut -d':' -f 2 | grep 1`
       else
@@ -168,7 +168,7 @@ then
          cflags="-mavx"
          # macOS uses different commands  
          flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
-         if test "$flag" != OSGUESS
+         if test "$flag" != $OSGUESS
          then
             csimd=`sysctl -a | grep -e avx | cut -d':' -f 2 | grep 1`
          else
@@ -182,7 +182,7 @@ then
             cflags="-msse"
             # macOS uses different commands  
             flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
-            if test "$flag" != OSGUESS
+            if test "$flag" != $OSGUESS
             then
                csimd=`sysctl -a | grep -e sse | cut -d':' -f 2 | grep 1`
             else
@@ -237,7 +237,8 @@ sed -i "s/$oldflg/$newflg/g" $topkdir/Make.inc
 
 echo "Generating run script ... ..."
 oldpre="PRE=x"
-newpre="PRE=s" # default float
+# default float
+newpre="PRE=s" 
 sed "s/$oldpre/$newpre/" $topkdir/CONFIG/rungen.top > $topkdir/rungen.sh
 sed -i "s/VLEN=x/VLEN=$svlen/" $topkdir/rungen.sh
 chmod u+x $topkdir/rungen.sh 
@@ -252,14 +253,13 @@ sed -i "s/vlen=.*/vlen=$svlen/" $topdir/Makefile
 #
 # macOS uses different commands  
 flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
-if test "$flag" != OSGUESS
+if test "$flag" != $OSGUESS
 then
    nth=`sysctl -a| grep core_count | cut -d ':' -f 2`
 else
    nth=`grep 'cpu cores' /proc/cpuinfo | uniq | cut -d ':' -f 2 -s`
 fi
-nth=`sed 's. ..g' <<<$nth` 
-#echo $nth
+nth=`echo $nth | sed 's. ..g'`
 sed -i "s/NTHREADS=48/NTHREADS=$nth/" $topdir/Makefile
 
 echo "Done configure"
