@@ -759,7 +759,7 @@ void mytest_csr
                pntre, a, lda, b, ldb, beta, c, ldc);
          break;
       case 'g' : // gcn 
-         imsg = VOP_COPY_RHS | ROP_NOOP | SOP_NOOP | VSC_MUL | AOP_ADD;
+         imsg = VOP_COPY_RHS | ROP_NOOP | SOP_NOOP | VSC_NOOP | AOP_ADD;
          
          fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb, 
                pntre, a, lda, b, ldb, beta, c, ldc);

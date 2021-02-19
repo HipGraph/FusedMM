@@ -515,7 +515,7 @@ int fusedMM_csr
    if ( GET_VOP_FLAG(imessage) == VOP_COPY_RHS 
          && GET_ROP_FLAG(imessage) == ROP_NOOP 
          && GET_SOP_FLAG(imessage) == SOP_NOOP 
-         && GET_VSC_FLAG(imessage) == VSC_MUL 
+         && GET_VSC_FLAG(imessage) == VSC_NOOP 
          && GET_AOP_FLAG(imessage) == AOP_ADD)
    {
       #ifdef DREAL 
@@ -704,6 +704,7 @@ int fusedMM_csr
 /*
  *          scal init with val be default to manage SPMM type operation
  *          It will be overwritten when ROP is used 
+ *          HERE HERE, default value of out??? 
  */
             scal = val[j];
          #ifdef DEBUG
