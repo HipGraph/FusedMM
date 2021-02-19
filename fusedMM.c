@@ -204,6 +204,11 @@ int KERN_ROP_NORMR (INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
  *    SOP operation  
  *       mostly user defined, default NOOP 
  *=============================================================================*/
+int KERN_SOP_COPY(VALUETYPE val, VALUETYPE *out)
+{
+   *out = val;
+   return FUSEDMM_SUCCESS_RETURN;
+}
 int KERN_SOP_NOOP(VALUETYPE val, VALUETYPE *out)
 {
    // dummy function to avoid extra checking 
@@ -414,6 +419,9 @@ FP_SOP_FUNC GetSOPFunc(int32_t msg)
    {
       case SOP_NOOP: 
          SOP_FUNC = KERN_SOP_NOOP;
+         break;
+      case SOP_COPY: 
+         SOP_FUNC = KERN_SOP_COPY;
          break;
       case SOP_UDEF: 
          SOP_FUNC = SOP_UDEF_FUNC;
