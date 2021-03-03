@@ -42,13 +42,16 @@ then
    flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
    if test "$flag" != $OSGUESS
    then 
-      echo "MacOS uses clang by default"
-      cc=`clang --version | grep clang`
-      if [ -z "$cc" ]
-      then
-         echo "Atleast clang is required on MacOS!"
-         exit 1
-      fi
+      #echo "MacOS uses clang by default"
+      #cc=`clang --version | grep clang`
+      #if [ -z "$cc" ]
+      #then
+      #   echo "Atleast clang is required on MacOS!"
+      #   exit 1
+      #fi
+      echo "gcc is required, even in MacOS to get openmp!"
+      echo "This configure is not compatible with macOS yet!"
+      exit 1
    else
       echo "gcc is required!"
       exit 1
