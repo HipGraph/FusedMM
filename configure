@@ -262,14 +262,15 @@ if test "$flag" != $OSGUESS
 then
    nth=`sysctl -a| grep core_count | cut -d ':' -f 2`
 else
-   nth=`grep 'cpu cores' /proc/cpuinfo | uniq | cut -d ':' -f 2 -s`
+   #nth=`grep 'cpu cores' /proc/cpuinfo | uniq | cut -d ':' -f 2 -s`
+   nth=`echo "$(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') ))"`
 fi
 if [ -z "$nth" ]
    then
       echo "******* WARNING:  Can't detect number of cores!!!"
       echo "******* Please manually update NTHREADS in Makefile."
    else
-      echo "Number of cores detected:$nth ... Updating NTHREADS in Makefile "
+      echo "Number of cores detected = $nth ... Updating NTHREADS in Makefile "
 fi
 nth=`echo $nth | sed 's. ..g'`
 sed -i "s/NTHREADS=48/NTHREADS=$nth/" $topdir/Makefile
