@@ -264,6 +264,11 @@ then
 else
    nth=`grep 'cpu cores' /proc/cpuinfo | uniq | cut -d ':' -f 2 -s`
 fi
+if [ -z "$nth" ]
+   then
+      echo "******* WARNING:  Can't detect number of cores!!!"
+      echo "******* Please manually update NTHREADS in Makefile."
+fi
 nth=`echo $nth | sed 's. ..g'`
 sed -i "s/NTHREADS=48/NTHREADS=$nth/" $topdir/Makefile
 
