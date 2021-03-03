@@ -66,7 +66,7 @@ cc=gcc    # gcc command should work on macOS even it's using clang
 #        No need to generate then edit...
 #
 mkdir -p $topkdir/bin
-$cc -O3 -o $topkdir/bin/xextract $topkdir/codegen/extract.c
+$cc -O3 -w -o $topkdir/bin/xextract $topkdir/codegen/extract.c
 ext=$topkdir/bin/xextract
 mbase=$topkdir/CONFIG/make.base
 $ext -b $topkdir/CONFIG/make.base -langM rout=make.inc -o $topkdir/Make.inc 
