@@ -65,9 +65,9 @@ cc=gcc    # gcc command should work on macOS even it's using clang
 #  TODO: we will diectly create the updated Makefiles from basefile
 #        No need to generate then edit...
 #
-echo "Compiling Extract code generatot tool ... ... " 
+echo "Compiling Extract code generator tool ... ... " 
 mkdir -p $topkdir/bin
-$cc -O3 -w -o $topkdir/bin/xextract $topkdir/codegen/extract.c
+$cc -O3 -w -o $topkdir/bin/xextract $topkdir/codegen/extract.c 2> /dev/null 
 ext=$topkdir/bin/xextract
 echo "Generating Makefiles ... ... "
 mbase=$topkdir/CONFIG/make.base
