@@ -814,7 +814,7 @@ int doChecking(IT NNZA, IT M, IT N, NT *C, NT *D, IT ldc)
    // NOTE: avg degree will not do, since some rows may have more non-zero 
    // 2 for opposit direction of errors 
    ErrBound = 2 * 4 * (NNZA) * EPS; /* considering upper bound for now*/ 
-   cout << "--- EPS = " << EPS << " ErrBound = " << ErrBound << endl; 
+   //cout << "--- EPS = " << EPS << " ErrBound = " << ErrBound << endl; 
    //cout << "--- ErrBound = " << ErrBound << " NNZ(A) = " << NNZA << " N = " << N  <<endl; 
    // row major! 
    for (i=0; i < M; i++)

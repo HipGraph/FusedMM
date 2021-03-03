@@ -248,7 +248,7 @@ LD_MKL_FLAG =  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_ilp64.a \
 #  Default Target  
 # ==============================================================================
 @declare "all: " y n 
-@multidef fmm FusedMM OptFusedMM
+@multidef fmm OptFusedMM FusedMM
 @whiledef fmm
 @multidef  kn sigmoid tdist fr spmm gcn
    @whiledef kn
