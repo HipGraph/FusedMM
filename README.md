@@ -29,22 +29,21 @@ To test FusedMM for single precision float, use
 $ make test 
 ```
 
-Compiling step will generate all executible files inside the bin folder. To run a specific kernel using FusedMM, please use the following format:
+Compiling step will generate all executible files inside the bin folder. To run the tester and timer with a specific kernel using FusedMM, please use the following format:
 ```
 ./bin/xsOptFusedMMtime_fr_pt -input dataset/harvard.mtx 
 ```
 The optimizeed kernel has the prefix `xsOptFusedMM*` and the unoptimized kernel has the prefix `xsFusedMM*`. There are several parameters which can be provided as follows:
 ```
 -input <string>, full path of input file (required).
--option <int>, an interger telling the option.
 -K <int>, dimension of the embedding.
--C <int>
--nrep <int>
--T <int>
+-C <int> Cachesize in KB to use cache flushing in timer
+-nrep <int> Number of repeatation in timer  
+-T <1,0> want to run the tester along with timer  
 ```
 
 ### Note for double precision floating point: 
-Configure step detects the SIMD width for single precision. For double precision, it normally half the width. Update "pre" and "vlen" in Makefile accordingly and use make command.
+Configure step detects the SIMD width for single precision. For double precision, it is normally half the width. Update "pre" and "vlen" in Makefile accordingly and use make command.
 
 ## Citation
 If you find this repository helpful, please cite the following paper:
