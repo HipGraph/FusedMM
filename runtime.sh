@@ -11,7 +11,7 @@ vlen=16
 
 Ddir=./dataset  # path 
 #dataset="blogcatalog.mtx cora.mtx citeseer.mtx com-Amazon.mtx flickr.mtx pubmed.mtx youtube.mtx" 
-dataset="blogcatalog.mtx" 
+dataset="harvard.mtx" 
 
 rdir=./results
 
