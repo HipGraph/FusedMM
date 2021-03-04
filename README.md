@@ -1,6 +1,8 @@
 # FusedMM
 
-This is the official implementation of FusedMM method accepted for publication in IEEE IPDPS 2021 titled "FusedMM: A Unified SDDMM-SpMM Kernel for Graph Embedding and Graph Neural Networks". [Paper Link](https://arxiv.org/abs/2011.06391)
+This is the official implementation of FusedMM method accepted for publication in IEEE IPDPS 2021 titled "FusedMM: A Unified SDDMM-SpMM Kernel for Graph Embedding and Graph Neural Networks". 
+
+[Paper Link](https://arxiv.org/abs/2011.06391)
 
 ## Compile and Run FusedMM
 
