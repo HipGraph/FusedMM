@@ -103,7 +103,7 @@ LD_MKL_FLAG =  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_ilp64.a \
 
 all: test 
 
-data=dataset/blogcatalog.mtx
+data=dataset/harvard.mtx
 d=128  # feature dimension to test
 t=s    # kernel to test, defaul sigmoid, other option = t, g, m
 test: $(BIN)/x$(pre)fusedMMtime_pt       

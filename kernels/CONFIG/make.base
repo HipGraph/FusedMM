@@ -185,7 +185,7 @@ kruntime=1   # 0 means K compile time, used in tuning phase
 bestK=512    # needed when kruntime=1, normally got from tuning step  
 
 kern=s   # t = tdist/fr, s = sigmoid, m = spmm, g = gcn 
-data=dataset/blogcatalog.mtx      
+data=dataset/harvard.mtx      
 d=128 
 # =============================================================================
 #  General Flags 
