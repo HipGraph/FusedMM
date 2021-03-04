@@ -4,6 +4,15 @@ This is the official implementation of FusedMM method accepted for publication i
 
 [**PDF is available in arXiv**](https://arxiv.org/abs/2011.06391)
 
+
+## System Requirements
+Users need to have the following softwares/tools installed in their PC/server. The source code was compiled and run successfully in both Linux and macOS.
+```
+GCC version >= 4.9
+OpenMP version >= 4.5
+```
+Some helpful links can be found at [GCC](https://gcc.gnu.org/install/), [OpenMP](https://clang-omp.github.io) and [Environment Setup](http://heather.cs.ucdavis.edu/~matloff/158/ToolsInstructions.html#compile_openmp).
+
 ## Compile and Run FusedMM
 
 ```
