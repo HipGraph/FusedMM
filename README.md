@@ -38,7 +38,7 @@ If you find this repository helpful, please cite the following paper:
 @inproceedings{rahman2020fusedmm,
   title={FusedMM: A Unified SDDMM-SpMM Kernel for Graph Embedding and Graph Neural Networks},
   author={Rahman, Md and Sujon, Majedul Haque and Azad, Ariful and others},
-  booktitle={Proceedings of IEEE IPDPS},
+  booktitle={The 35th Proceedings of IEEE IPDPS},
   year={2021}
 }
 ```
