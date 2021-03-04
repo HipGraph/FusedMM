@@ -30,8 +30,15 @@ topkdir=$topdir/kernels
 
 #
 #  MacOS uses different commands
+#     NOTE: This version is not compatible with macOS yet  
 #
 OSGUESS=`uname`
+flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
+if test "$flag" != $OSGUESS
+   then
+      echo "This configure script is not compatible with macOS yet!"
+      exit 1
+fi
 #
 #  compiler 
 #
