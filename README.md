@@ -42,7 +42,7 @@ The optimizeed kernel has the prefix `xsOptFusedMM*` and the unoptimized kernel 
 -T <1,0> want to run the tester along with timer  
 ```
 ## Download All Datasets of FusedMM ##
-To conduct experiments using all the datasets of FusedMM paper, please download it from the following link:[Datasets](https://drive.google.com/drive/folders/1CktM59PBTVzSF8ekjU3EoYO5QDVrY7Yc?usp=sharing)
+To conduct experiments using all the datasets of FusedMM paper, please download it from the following link: [**Datasets**](https://drive.google.com/drive/folders/1CktM59PBTVzSF8ekjU3EoYO5QDVrY7Yc?usp=sharing)
 
 ### Note for double precision floating point: 
 Configure step detects the SIMD width for single precision. For double precision, it is normally half the width. Update "pre" and "vlen" in Makefile accordingly and use make command.
