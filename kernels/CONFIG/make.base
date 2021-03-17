@@ -266,11 +266,11 @@ LD_MKL_FLAG =  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_ilp64.a \
    @endwhile
 @endwhile
 @enddeclare 
-@multidef fmm FusedMM OptFusedMM
+@multidef fmm OptFusedMM FusedMM
 @whiledef fmm
    @multidef  kn sigmoid tdist fr spmm gcn 
    @whiledef kn
-	$(BIN)/x$(pre)@(fmm)time_@(kn)@(pt) -input $(data) -T 1 -K $(d)  
+	$(BIN)/x$(pre)@(fmm)time_@(kn)_pt -input $(data) -T 1 -K $(d)  
    @endwhile
 @endwhile
 
@@ -283,7 +283,7 @@ mkl: $(BIN)/x$(pre)OptFusedMMtime_spmm_MKL_pt
 	$(BIN)/x$(pre)OptFusedMMtime_spmm_MKL_pt -input $(data) -T 1 -K $(d)  
 
 $(BIN)/$(pre)OptFusedMMtime_spmm_MKL_pt.o: $(Tdir)/fusedMMtime.cpp fusedMM.h \
-   $(KINCdir)/kernels.h  
+   fusedMM_internal.h   
 	mkdir -p $(BIN)
 	$(CPP) $(CPPFLAGS) $(TYPFLAGS) -DTIME_MKL -I$(KINCdir) -DSPMM_UDEF \
 	   -DCPP $(PT_CC_MKL_FLAG) $(MYPT_FLAG) -c $(Tdir)/fusedMMtime.cpp -o $@   
@@ -352,7 +352,6 @@ $(BIN)/$(pre)FusedMMtime_@(kn)@(pt).o: $(Tdir)/fusedMMtime.cpp fusedMM.h \
 $(BIN)/x$(pre)@(fmm)time_@(kn)@(pt): $(BIN)/$(pre)FusedMMtime_@(kn)@(pt).o \
    $(BIN)/$(pre)@(fmm)@(pt).o @(lib)  
 	$(CPP) $(CPPFLAGS) -o $@ $^ @(lib) -lm
-	#$(BIN)/x$(pre)@(fmm)time_@(kn)@(pt) -input $(data) -T 1 -K $(d)  
       @endwhile
    @endwhile
    
