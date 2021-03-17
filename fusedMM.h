@@ -121,6 +121,9 @@ int fusedMM_csr
  *    Disable these macros if you don't have any user defined functions. 
  *    When these macros are not defined, but UDEF message is used the default
  *    UDEF function will return FUSEDMM_UNDEFINED_USER_FUNTION status.
+ *   
+ *    NOTE NOTE:  If user provides USER_DEFINE_FUNC, it must be thread safe. 
+ *    User should not update any global varibale inside these functions!!!
  */
 
 //#define VOP_UDEF_IMPL 1 
