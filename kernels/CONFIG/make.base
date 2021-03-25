@@ -258,7 +258,8 @@ LD_MKL_FLAG =  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_ilp64.a \
 @enddeclare 
 
 @declare "test: " y n 
-@multidef fmm OptFusedMM FusedMM
+@SKIP --- @multidef fmm OptFusedMM FusedMM
+@multidef fmm OptFusedMM 
 @whiledef fmm
 @multidef  kn sigmoid tdist fr spmm gcn
    @whiledef kn
@@ -266,7 +267,8 @@ LD_MKL_FLAG =  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_ilp64.a \
    @endwhile
 @endwhile
 @enddeclare 
-@multidef fmm OptFusedMM FusedMM
+@SKIP --- @multidef fmm OptFusedMM FusedMM
+@multidef fmm OptFusedMM 
 @whiledef fmm
    @multidef  kn sigmoid tdist fr spmm gcn 
    @whiledef kn
