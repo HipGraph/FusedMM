@@ -1838,9 +1838,8 @@ void GetFlags(int narg, char **argv, string &inputfile, int &option,
    
    // alphaX, betaX would be the worst case for our implementation  
    ialpha=1; 
-   alpha=1.0; 
-   ibeta=1; 
-   //beta = 1.0;
+   alpha=1.0; // default alpha is 1  
+   ibeta=0;   // default beta is 0  
    
    for(int p = 1; p < narg; p++)
    {
@@ -1923,7 +1922,7 @@ void GetFlags(int narg, char **argv, string &inputfile, int &option,
 /*
  * supported beta = 0 and beta = 1 case
  */
-   if (ibeta = 0)
+   if (ibeta == 0)
       beta = 0.0;
    else
       beta = 1.0;
