@@ -3,8 +3,19 @@
  */ 
 #include<cassert>
 #include<cstdio>
-#define INDEXTYPE int 
-#define VALUETYPE float
+
+
+/* to run debug codes */
+#include "helper_cuda.h"
+
+#ifdef DREAL
+   #define VALUETYPE double
+#else
+   #define VALUETYPE float
+#endif
+
+
+#define DEBUG 1 
 
 
 /*
@@ -61,7 +72,8 @@ __global__ void sfusedMMcu_sigmoid_a1b0_csr
    INDEXTYPE tid = threadIdx.x;
    INDEXTYPE id = threadIdx.x + blockDim.x*blockIdx.x; 
    VALUETYPE rx = x[id];
-   
+
+
    //VALUETYPE rz = z[id];
    VALUETYPE rz = 0.0; // beta==0 case  
 
@@ -74,7 +86,7 @@ __global__ void sfusedMMcu_sigmoid_a1b0_csr
    {
       INDEXTYPE colidj = colid[j];
       INDEXTYPE jindex = colidj * blockDim.x;  // blockDim.x = k 
-      VALUETYPE ry = y[jindex+id];
+      VALUETYPE ry = y[jindex+tid];
       VALUETYPE attrc = rx * ry;
 
 #ifdef USE_WARP_SHUFFLE
@@ -107,6 +119,8 @@ __global__ void sfusedMMcu_sigmoid_a1b0_csr
 
       // reduction in first warp, no synch needed 
       if (tid < 32) warpReduce<BLOCKSIZE>(temp, tid);
+      
+      __syncthreads();
       attrc = temp[0];  // already reduced in temp[0] 
 
 #endif
@@ -120,8 +134,7 @@ __global__ void sfusedMMcu_sigmoid_a1b0_csr
    z[id] = rz; // update z 
 }
 
-
-extern void sfusedMMcu_csr
+extern void fusedMMcu_csr
 (
    const char tkern,       // 't' = tdist 's' = sigmoid 
    const INDEXTYPE m,      // rows of dense X matrix
@@ -166,6 +179,14 @@ extern void sfusedMMcu_csr
    int nblocks = m;
    assert(k%32==0); // k is multiple of 32 threads (warp threads)
    int nthreads = k; 
+#if 0
+   fprintf(stderr, "******* Applying CUDA kernel\n");
+   fprintf(stderr, "Printing parameters :\n");
+   fprintf(stderr, "m, n, k = %d, %d, %d\n", m,n,k);
+   fprintf(stderr, "ldx, ldy, ldz = %d, %d, %d\n", ldx,ldy,ldz);
+   fprintf(stderr, "z ptr = %p\n", z);
+#endif
+   assert(beta==0.0);
 
 /*
  * allocate in device memory
@@ -196,6 +217,10 @@ extern void sfusedMMcu_csr
    // output  
    assert(ldz==k);
    checkCudaErrors(cudaMalloc((void **)&d_z, (m*ldz)*sizeof(VALUETYPE)));   
+   
+   checkCudaErrors(cudaMemcpy(d_z, z, (m*ldz)*sizeof(VALUETYPE),
+            cudaMemcpyHostToDevice));
+   fprintf(stderr, "---d_z = %p\n", d_z);
 
 #else
    cudaMalloc((void **)&d_rowptr, (m+1)*sizeof(INDEXTYPE));
@@ -218,12 +243,19 @@ extern void sfusedMMcu_csr
 #endif
    
    int shared_mem_size = sizeof(VALUETYPE) * nthreads;
+
+#if 0
+   fprintf(stderr, "nblocks = %d, nthreads=%d, memsize=%d\n", nblocks, nthreads, 
+          shared_mem_size);  
+#endif 
+   
    switch(tkern)
    {
       case 't' :
          break;
       case 's' :
          // calling the GPU kernel
+         fprintf(stderr, "*********** calling sigmoid function\n");
          switch(nthreads)
          {
             case 512:
@@ -278,6 +310,7 @@ extern void sfusedMMcu_csr
    }
 
 #ifdef DEBUG
+   //fprintf(stderr, "---z ptr = %p, d_z = %p\n", z, d_z);
    checkCudaErrors(cudaMemcpy(z, d_z, (m*ldz)*sizeof(VALUETYPE),
             cudaMemcpyDeviceToHost));
 #else

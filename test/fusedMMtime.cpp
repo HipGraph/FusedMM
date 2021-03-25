@@ -240,8 +240,16 @@ void SDDMMSPMMCsrSigmoid
          {
             attrc += X[iindex + k] * Y[jindex + k];
          }
+   #ifdef CUDA_KERN 
+/*
+ * Just testing with 1st cuda implementation. not implemented fast_SM in cuda 
+ * yet. To test just multiply with 0.5 
+ */
+         DType d1 = 0.5 * attrc;
+   #else
          //DType d1 = 1.0 / (1.0 + exp(-attrc));
          DType d1 = fast_SM<DType>(attrc, sm_table);
+   #endif
 	 //printf("");
 	 for (int64_t k = 0; k < dim; ++k) 
          {
@@ -745,6 +753,21 @@ void mytest_csr
                pntre, a, lda, b, ldb, beta, c, ldc);
 	 break;
       case 's' : // sigmoid
+      #ifdef CUDA_KERN 
+      // only supported for beta = 0.0 for now
+      cout << "beta = " << beta << endl;
+      assert(beta==0.0);
+      void fusedMMcu_csr( const char tkern, const INDEXTYPE m, const INDEXTYPE n,
+            const INDEXTYPE k, const VALUETYPE alpha, const INDEXTYPE nnz, 
+            const INDEXTYPE rows, const INDEXTYPE cols, const VALUETYPE *val,  
+            const INDEXTYPE *indx,const INDEXTYPE *pntrb,const INDEXTYPE *pntre,
+            const VALUETYPE *x, const INDEXTYPE ldx, const VALUETYPE *y, 
+            const INDEXTYPE ldy, const VALUETYPE beta, VALUETYPE *z, 
+            const INDEXTYPE ldz);
+         fusedMMcu_csr('s', m, n, k, alpha, nnz, rows, cols, val, indx, pntrb, 
+               pntre, a, lda, b, ldb, beta, c, ldc);
+   
+      #else
          uinit_SM_TABLE();
          //printf("Calling fused kernel\n");
          //imsg = VOP_COPY_LHS | ROP_DOT | SOP_UDEF | VSC_MUL | AOP_ADD;
@@ -752,7 +775,7 @@ void mytest_csr
          
          fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb, 
                pntre, a, lda, b, ldb, beta, c, ldc);
-         
+      #endif
          break;
       case 'm' : // spmm
          imsg = VOP_COPY_RHS | ROP_NOOP | SOP_COPY | VSC_MUL | AOP_ADD;
@@ -804,6 +827,7 @@ int doChecking(IT NNZA, IT M, IT N, NT *C, NT *D, IT ldc)
    double ErrBound; 
 
    int nerr = 0;
+   int isp = 0;
 /*
  * Error bound : total computation = K*NNZ + K*NNZ FMAC = 4*K*NNZ
  *               flop per element of C = 4*K*NNZ / M*K
@@ -826,9 +850,13 @@ int doChecking(IT NNZA, IT M, IT N, NT *C, NT *D, IT ldc)
          if (diff < 0.0) diff = -diff; 
          if (diff > ErrBound)
          {
-      #if 0
-            fprintf(stderr, "C(%d,%d) : expected=%e, got=%e, diff=%e\n",
+      #if 1
+            if (!isp)
+            {
+               fprintf(stderr, "C(%d,%d) : expected=%e, got=%e, diff=%e\n",
                     i, j, C[k], D[k], diff);
+               isp = 1; // to  print single error  
+            }
       #else // print single value... 
             if (!i && !j)
                fprintf(stderr, "C(%ld,%ld) : expected=%e, got=%e, diff=%e\n",
@@ -1839,7 +1867,7 @@ void GetFlags(int narg, char **argv, string &inputfile, int &option,
    // alphaX, betaX would be the worst case for our implementation  
    ialpha=1; 
    alpha=1.0; 
-   ibeta=1; 
+   ibeta=0; 
    //beta = 1.0;
    
    for(int p = 1; p < narg; p++)
@@ -1923,11 +1951,10 @@ void GetFlags(int narg, char **argv, string &inputfile, int &option,
 /*
  * supported beta = 0 and beta = 1 case
  */
-   if (ibeta = 0)
+   if (ibeta == 0)
       beta = 0.0;
    else
       beta = 1.0;
-
 }
 int main(int narg, char **argv)
 {
