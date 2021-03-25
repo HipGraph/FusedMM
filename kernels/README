@@ -1,5 +1,6 @@
 This is the README file for the library generator. 
 Use the script file rungen.sh to generate any library.
+NOTE: rungen.sh script is now generated after the configure steps. 
 
 It has two phases: 
    1. Tuning phase: When you want to find best K (dim) for register blocking, 
