@@ -160,7 +160,7 @@ newsimd="SIMD = $simd"
 sed -i "s/$oldsimd/$newsimd/g" $topdir/Make.inc
 
 oldflg="KCCFLAGS ="
-newflg="KCCFLAGS = $cflags"
+newflg="KCCFLAGS = -O3 $cflags"
 sed -i "s/$oldflg/$newflg/g" $topdir/Make.inc
 
 echo "Generating run script ... ..."
