@@ -178,7 +178,7 @@ do
       do
          res=$rdir/${dset}-${kn}-${px}real-${rb}.csv
          
-         echo "Running $kn with the dataset $dset"
+         echo "Running $kn with the dataset $dset applying $rb"
          echo "================================================="
 
          echo "Filename,NNZ,M,N,K,trusted-time,test-time,speedup" | tee $res
