@@ -365,6 +365,9 @@ $(BIN)/x$(pre)@(fmm)time_@(kn)@(pt): $(BIN)/$(pre)FusedMMtime_@(kn)@(pt).o \
 clean:
 	rm -rf ./bin/*
 
+kill:
+	rm -rf ./bin/x*
+
 killlib: 
 	cd $(Kdir) ; make clean pre=s
 @ROUT !
