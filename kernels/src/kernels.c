@@ -12,7 +12,6 @@
 
 #define Mjoin(pre,nam) my_join(pre, nam)
 #define my_join(pre,nam) pre ## nam
-//#include Mstr(Mjoin(ATLAS_PRE,ipgen_view.h))
 
 #ifdef DREAL
    #include "../generated/include/dgmisc.h"
@@ -35,32 +34,35 @@
    #define VALUETYPE float 
    #define PRE s
 #endif
-/*
- * some trusted non-optimized kernel for the cases which are handled by 
- * generated kernels 
- */
+/* ============================================================================
+ * Some trusted non-optimized kernel for the cases which are not handled by 
+ * generated kernel. 
+ * NOTE NOTE: in current version, optimized generated kernels can't be applied
+ * when K%VLEN != 0. User should aways pad the row and make dimension multiple
+ * of vector width before calling the optimized code.  
+ *============================================================================*/
 
 void trusted_fusedMM_tdist_csr 
 (
-   const char tkern,  // 't' = tdist 's' = sigmoid 
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
-   const VALUETYPE *val,   // NNZ value  
-   const INDEXTYPE *indx,  // colids -> column indices 
-   const INDEXTYPE *pntrb, // starting index for rowptr
-   const INDEXTYPE *pntre, // ending index for rowptr
-   const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
-   VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const char tkern,       /* 't' = tdist 's' = sigmoid 'm' = spmm 'g' = gcn */
+   const INDEXTYPE m,      /* number of row of X */
+   const INDEXTYPE n,      /* number of row of Y */
+   const INDEXTYPE k,      /* dimension (col of X or Y) */ 
+   const VALUETYPE alpha,  /* not used yet */ 
+   const INDEXTYPE nnz,    /* nonzeros in sparse matrix  */
+   const INDEXTYPE rows,   /* number of rows in sparse matrix */
+   const INDEXTYPE cols,   /* number of columns in sparse matrix */
+   const VALUETYPE *val,   /* value of NNZ  */
+   const INDEXTYPE *indx,  /* colids -> column indices*/
+   const INDEXTYPE *pntrb, /* starting index for rowptr */
+   const INDEXTYPE *pntre, /* ending index for rowptr */
+   const VALUETYPE *a,     /* Dense B matrix */
+   const INDEXTYPE lda,    /* leading dimension of a (col size since row-major) */
+   const VALUETYPE *b,     /* Dense B matrix */
+   const INDEXTYPE ldb,    /* leading dimension of b (col size since row-major) */ 
+   const VALUETYPE beta,   /* beta value */ 
+   VALUETYPE *c,           /* Dense matrix c */
+   const INDEXTYPE ldc     /* leading dimension size of c (col size since row-major) */ 
 )
 {
 #if defined(PTTIME) && defined(LDB)
@@ -148,27 +150,30 @@ void trusted_fusedMM_tdist_csr
 
 void trusted_fusedMM_sigmoid_csr 
 (
-   const char tkern,  // 't' = tdist 's' = sigmoid 
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
-   const VALUETYPE *val,   // NNZ value  
-   const INDEXTYPE *indx,  // colids -> column indices 
-   const INDEXTYPE *pntrb, // starting index for rowptr
-   const INDEXTYPE *pntre, // ending index for rowptr
-   const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
-   VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const char tkern,       /* 't' = tdist 's' = sigmoid 'm' = spmm 'g' = gcn */
+   const INDEXTYPE m,      /* number of row of X */
+   const INDEXTYPE n,      /* number of row of Y */
+   const INDEXTYPE k,      /* dimension (col of X or Y) */ 
+   const VALUETYPE alpha,  /* not used yet */ 
+   const INDEXTYPE nnz,    /* nonzeros in sparse matrix  */
+   const INDEXTYPE rows,   /* number of rows in sparse matrix */
+   const INDEXTYPE cols,   /* number of columns in sparse matrix */
+   const VALUETYPE *val,   /* value of NNZ  */
+   const INDEXTYPE *indx,  /* colids -> column indices*/
+   const INDEXTYPE *pntrb, /* starting index for rowptr */
+   const INDEXTYPE *pntre, /* ending index for rowptr */
+   const VALUETYPE *a,     /* Dense B matrix */
+   const INDEXTYPE lda,    /* leading dimension of a (col size since row-major) */
+   const VALUETYPE *b,     /* Dense B matrix */
+   const INDEXTYPE ldb,    /* leading dimension of b (col size since row-major) */ 
+   const VALUETYPE beta,   /* beta value */ 
+   VALUETYPE *c,           /* Dense matrix c */
+   const INDEXTYPE ldc     /* leading dimension size of c (col size since row-major) */ 
 )
 {
+#ifndef SOP_INHOUSE
+   extern int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out);
+#else
    VALUETYPE *sm_table = (VALUETYPE*)malloc(sizeof(VALUETYPE)*SM_TABLE_SIZE);
    if (!sm_table)
    {
@@ -176,6 +181,7 @@ void trusted_fusedMM_sigmoid_csr
             "Unable to allocate memory for SM TABLE in trusted kernel!!!\n");
       exit(1);
    }
+#endif
 #if defined(PTTIME) && defined(LDB)
    omp_set_num_threads(NTHREADS);
    #pragma omp parallel
@@ -237,41 +243,49 @@ void trusted_fusedMM_sigmoid_csr
          const INDEXTYPE cid = indx[j];
          const INDEXTYPE jindex = cid * k; 
          VALUETYPE attrc = 0.0;
+         VALUETYPE d1; 
          for (INDEXTYPE kk=0; kk < k; kk++)
-            attrc += a[iindex+kk] * b[jindex+kk]; 
-         VALUETYPE d1 = fast_SM(attrc, sm_table);
+            attrc += a[iindex+kk] * b[jindex+kk];
+   #ifdef SOP_INHOUSE
+         d1 = fast_SM(attrc, sm_table);
+         d1 = 1.0 - d1;
+   #else
+         SOP_UDEF_FUNC(attrc, &d1);
+   #endif
          // update C 
          for (INDEXTYPE kk=0; kk < k; kk++)
-            c[iindex+kk] += (1.0-d1)*b[jindex+kk];
+            c[iindex+kk] += d1*b[jindex+kk];
       }
    }
 #if defined(PTTIME) && defined(LDB)
    }
 #endif
+#ifdef SOP_INHOUSE
    free(sm_table);
+#endif
 }
 
 void trusted_fusedMM_spmm_csr 
 (
-   const char tkern,  // 't' = tdist 's' = sigmoid 
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
-   const VALUETYPE *val,   // NNZ value  
-   const INDEXTYPE *indx,  // colids -> column indices 
-   const INDEXTYPE *pntrb, // starting index for rowptr
-   const INDEXTYPE *pntre, // ending index for rowptr
-   const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
-   VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const char tkern,       /* 't' = tdist 's' = sigmoid 'm' = spmm 'g' = gcn */
+   const INDEXTYPE m,      /* number of row of X */
+   const INDEXTYPE n,      /* number of row of Y */
+   const INDEXTYPE k,      /* dimension (col of X or Y) */ 
+   const VALUETYPE alpha,  /* not used yet */ 
+   const INDEXTYPE nnz,    /* nonzeros in sparse matrix  */
+   const INDEXTYPE rows,   /* number of rows in sparse matrix */
+   const INDEXTYPE cols,   /* number of columns in sparse matrix */
+   const VALUETYPE *val,   /* value of NNZ  */
+   const INDEXTYPE *indx,  /* colids -> column indices*/
+   const INDEXTYPE *pntrb, /* starting index for rowptr */
+   const INDEXTYPE *pntre, /* ending index for rowptr */
+   const VALUETYPE *a,     /* Dense B matrix */
+   const INDEXTYPE lda,    /* leading dimension of a (col size since row-major) */
+   const VALUETYPE *b,     /* Dense B matrix */
+   const INDEXTYPE ldb,    /* leading dimension of b (col size since row-major) */ 
+   const VALUETYPE beta,   /* beta value */ 
+   VALUETYPE *c,           /* Dense matrix c */
+   const INDEXTYPE ldc     /* leading dimension size of c (col size since row-major) */ 
 )
 {
 #if defined(PTTIME) && defined(LDB)
@@ -347,25 +361,25 @@ void trusted_fusedMM_spmm_csr
 
 void trusted_fusedMM_gcn_csr 
 (
-   const char tkern,  // 't' = tdist 's' = sigmoid 
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
-   const VALUETYPE *val,   // NNZ value  
-   const INDEXTYPE *indx,  // colids -> column indices 
-   const INDEXTYPE *pntrb, // starting index for rowptr
-   const INDEXTYPE *pntre, // ending index for rowptr
-   const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
-   VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const char tkern,       /* 't' = tdist 's' = sigmoid 'm' = spmm 'g' = gcn */
+   const INDEXTYPE m,      /* number of row of X */
+   const INDEXTYPE n,      /* number of row of Y */
+   const INDEXTYPE k,      /* dimension (col of X or Y) */ 
+   const VALUETYPE alpha,  /* not used yet */ 
+   const INDEXTYPE nnz,    /* nonzeros in sparse matrix  */
+   const INDEXTYPE rows,   /* number of rows in sparse matrix */
+   const INDEXTYPE cols,   /* number of columns in sparse matrix */
+   const VALUETYPE *val,   /* value of NNZ  */
+   const INDEXTYPE *indx,  /* colids -> column indices*/
+   const INDEXTYPE *pntrb, /* starting index for rowptr */
+   const INDEXTYPE *pntre, /* ending index for rowptr */
+   const VALUETYPE *a,     /* Dense B matrix */
+   const INDEXTYPE lda,    /* leading dimension of a (col size since row-major) */
+   const VALUETYPE *b,     /* Dense B matrix */
+   const INDEXTYPE ldb,    /* leading dimension of b (col size since row-major) */ 
+   const VALUETYPE beta,   /* beta value */ 
+   VALUETYPE *c,           /* Dense matrix c */
+   const INDEXTYPE ldc     /* leading dimension size of c (col size since row-major) */ 
 )
 {
 #if defined(PTTIME) && defined(LDB)
@@ -445,29 +459,27 @@ void dgfusedMM_csr
 void sgfusedMM_csr
 #endif
 (
-   const char tkern,  // 't' = tdist 's' = sigmoid 
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
-   const VALUETYPE *val,   // NNZ value  
-   const INDEXTYPE *indx,  // colids -> column indices 
-   const INDEXTYPE *pntrb, // starting index for rowptr
-   const INDEXTYPE *pntre, // ending index for rowptr
-   const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
-   VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const char tkern,       /* 't' = tdist 's' = sigmoid 'm' = spmm 'g' = gcn */
+   const INDEXTYPE m,      /* number of row of X */
+   const INDEXTYPE n,      /* number of row of Y */
+   const INDEXTYPE k,      /* dimension (col of X or Y) */ 
+   const VALUETYPE alpha,  /* not used yet */ 
+   const INDEXTYPE nnz,    /* nonzeros in sparse matrix  */
+   const INDEXTYPE rows,   /* number of rows in sparse matrix */
+   const INDEXTYPE cols,   /* number of columns in sparse matrix */
+   const VALUETYPE *val,   /* value of NNZ  */
+   const INDEXTYPE *indx,  /* colids -> column indices*/
+   const INDEXTYPE *pntrb, /* starting index for rowptr */
+   const INDEXTYPE *pntre, /* ending index for rowptr */
+   const VALUETYPE *a,     /* Dense B matrix */
+   const INDEXTYPE lda,    /* leading dimension of a (col size since row-major) */
+   const VALUETYPE *b,     /* Dense B matrix */
+   const INDEXTYPE ldb,    /* leading dimension of b (col size since row-major) */ 
+   const VALUETYPE beta,   /* beta value */ 
+   VALUETYPE *c,           /* Dense matrix c */
+   const INDEXTYPE ldc     /* leading dimension size of c (col size since row-major) */ 
 )
 {
-/*
- */
    INDEXTYPE kk;
    
    switch(tkern)

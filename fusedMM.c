@@ -486,25 +486,25 @@ FP_AOP_FUNC GetAOPFunc(int32_t msg)
 
 int fusedMM_csr 
 (
-   const int32_t imessage, // message to dictate the operations  
+   const int32_t imessage,    // message to dictate the operations  
    const INDEXTYPE m,         // number of row of X
    const INDEXTYPE n,         // number of row of Y
    const INDEXTYPE k,         // dimension (col of X or Y)
-   const VALUETYPE alpha,   // not used yet
+   const VALUETYPE alpha,     // not used yet
    const INDEXTYPE nnz,       // nonzeros in sparse matrix 
    const INDEXTYPE rows,      // number of rows in sparse matrix
    const INDEXTYPE cols,      // number of columns in sparse matrix 
-   const VALUETYPE *val,    // value of non-zeros 
+   const VALUETYPE *val,      // value of non-zeros 
    const INDEXTYPE *indx,     // colids -> column indices 
    const INDEXTYPE *pntrb,    // starting of rowptr for each row
    const INDEXTYPE *pntre,    // ending of rowptr for each row
-   const VALUETYPE *x,      // Dense X matrix
-   const INDEXTYPE ldx,       // 1eading dimension of a   
-   const VALUETYPE *y,      // Dense Y matrix
-   const INDEXTYPE ldy,       // leading dimension of b   
-   const VALUETYPE beta,    // beta value 
-   VALUETYPE *z,            // Dense matrix Z
-   const INDEXTYPE ldz        // leading dimension size of c  
+   const VALUETYPE *x,        // Dense X matrix
+   const INDEXTYPE ldx,       // 1eading dimension of X   
+   const VALUETYPE *y,        // Dense Y matrix
+   const INDEXTYPE ldy,       // leading dimension of Y   
+   const VALUETYPE beta,      // beta value 
+   VALUETYPE *z,              // Dense matrix Z
+   const INDEXTYPE ldz        // leading dimension size of z 
 )
 {
    int status = 0;
