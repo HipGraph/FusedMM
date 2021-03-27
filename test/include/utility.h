@@ -13,7 +13,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
-#include <numa.h>
+
+#ifdef ENABLE_LIBNUMA
+   #include <numa.h>  /* to enable libnuma functionality */
+#endif
 // #include <tbb/scalable_allocator.h>
 
 using namespace std;
