@@ -1,15 +1,27 @@
+/*
+ * This file provides examples to demonstrate how to use/call our FusedMM kernel 
+ * library. It also consists of tester and timer for different applications 
+ * which use both FusedMM and trusted implementations (some directly copied from 
+ * the application repository) and compare the results. 
+ */
 #include <cstdio>
 #include <cstdint>
 #include <random>
 #include <cassert>
 #include <omp.h>
+/*
+ * Header files for I/O utilities to convert the mtx dataset into CSR or CSC 
+ * format. This implementation is taken from previous HipGraph projects managed
+ * by Dr. Azad.
+ */
 #include "include/CSC.h"
 #include "include/CSR.h"
 #include "include/commonutility.h"
 #include "include/utility.h"
 
 /*
- * select data type in Makefile
+ * NOTE: please select data types for both VALUETYPPE and INDEXTYPE in Makefile
+ * using following make var 
  *    pre=[s,d]
  *    ityp=[int64_t,int32_t]
  */
@@ -23,10 +35,11 @@
 /*
  * Added header file for general fusedMM 
  */
-
 #include "../fusedMM.h"
 
-
+/*
+ * Check whether the system supports the desire int data type  
+ */   
 #ifdef INT64
    #ifndef INT64_MAX 
       #error "64bit integer not supported in this architecture!!!"
@@ -37,11 +50,10 @@
       #error "32bit integer not supported in this architecture!!!"
    #endif
 #endif
-
 /*
- * some misc definition for timer : from ATLAS 
+ * some misc definition for timer, this definitions are taken from ATLAS 
+ * (math-atlas) project 
  */
-#define ATL_MaxMalloc 268435456UL
 #define ATL_Cachelen 64
    #define ATL_MulByCachelen(N_) ( (N_) << 6 )
    #define ATL_DivByCachelen(N_) ( (N_) >> 6 )
@@ -51,79 +63,66 @@
 
 /*
  * ===========================================================================
- * Defining API for our new kernel 
+ * Defining API for the kernel in tester/timer 
  * input: 
  *    Dense matrices: A -> MxK B -> NxK C -> MxD 
  *    Sparse: S -> MxN 
  * output:
  *    C -> MxK 
- *
- *    dot / sum /subtraction / t-dist
- *       - dot : scalar, tdist 
- *       - sum / subtraction : vector  
- *    sigmoid / scal 
- *
- *
- *
- *    Meta descriptor: 
- *      
- *
  * ============================================================================
  */
 
-/* based on CSR */
+/* API based on CSR */
 typedef void (*csr_mm_t) 
 (
-   const char tkern,  // 'N' 'T'
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
+   const char tkern,       // kernel variations
+   const INDEXTYPE m,      // rows of A 
+   const INDEXTYPE n,      // rows of B
+   const INDEXTYPE k,      // dimension: col of A and B
+   const VALUETYPE alpha,  // not used yet  
+   const INDEXTYPE nnz,    // nonzeros  
+   const INDEXTYPE rows,   // number of rows for sparse matrix 
+   const INDEXTYPE cols,   // number of columns for sparse matrix 
    const VALUETYPE *val,   // NNZ value  
    const INDEXTYPE *indx,  // colids -> column indices 
    const INDEXTYPE *pntrb, // starting index for rowptr
    const INDEXTYPE *pntre, // ending index for rowptr
-   const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
+   const VALUETYPE *a,     // Dense A (X) matrix
+   const INDEXTYPE lda,    // leading dimension of A (col size since A row-major)  
    const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
+   const INDEXTYPE ldb,    // leading dimension of B (col size since B row-major)  
+   const VALUETYPE beta,   // beta value 
    VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const INDEXTYPE ldc     // leading dimension of c (col size since C row-major) 
 );
 
-
-/* based on CSC */
+/* API based on CSC */
 typedef void (*csc_mm_t) 
 (
-   const char tkern,  // 'N' 'T'
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
+   const char tkern,       // kernel variations
+   const INDEXTYPE m,      // rows of A 
+   const INDEXTYPE n,      // rows of B
+   const INDEXTYPE k,      // feature dimension : col of A and B
+   const VALUETYPE alpha,  // not used yet  
+   const INDEXTYPE nnz,    // nonzeros: need to recreate csr with mkl 
+   const INDEXTYPE rows,   // number of rows... not needed 
+   const INDEXTYPE cols,   // number of columns 
    const VALUETYPE *val,   // NNZ value  
    const INDEXTYPE *indx,  // colids -> column indices 
    const INDEXTYPE *pntrb, // starting index for rowptr
    const INDEXTYPE *pntre, // ending index for rowptr
    const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
+   const INDEXTYPE lda,    // 2nd dimension of b (col size since row-major)  
    const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
+   const INDEXTYPE ldb,    // 2nd dimension of b (col size since row-major)  
+   const VALUETYPE beta,   // beta value 
    VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const INDEXTYPE ldc     // 2nd dimension size of c (col size since roa-major) 
 );
 
 /* ============================================================================
- *    sample trusted kernels 
- *    Trusted kernels from gl/src/array/cpu/sddmmspmm 
- * 
+ *    Sample trusted kernels 
+ *    Trusted kernels from different application repository (e.g., Force2Vec) 
  *============================================================================*/
 
 #define SM_TABLE_SIZE 2048
@@ -242,7 +241,6 @@ void SDDMMSPMMCsrSigmoid
          }
          //DType d1 = 1.0 / (1.0 + exp(-attrc));
          DType d1 = fast_SM<DType>(attrc, sm_table);
-	 //printf("");
 	 for (int64_t k = 0; k < dim; ++k) 
          {
             O[iindex+k] = O[iindex+k]  + (1.0 - d1) * Y[jindex + k];
@@ -282,7 +280,7 @@ void TrustedFR
             T[k] = X[iindex + k] - Y[jindex + k];  // need to verify 
             attrc += T[k] * T[k];
          }
-         DType d1 = 1.0 + 1.0 / attrc;  // NOTE: do we need to mult by -1?  
+         DType d1 = 1.0 + 1.0 / attrc;    
          for (int64_t k = 0; k < dim; ++k) 
          {
             O[iindex+k] = O[iindex+k]  + d1 * T[k];
@@ -293,25 +291,25 @@ void TrustedFR
 
 void truested_spmm_csr 
 (
-   const char tkern,  // 'N' 'T'
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
+   const char tkern,       // kernel variations
+   const INDEXTYPE m,      // rows of A 
+   const INDEXTYPE n,      // rows of B
+   const INDEXTYPE k,      // dimension: col of A and B
+   const VALUETYPE alpha,  // not used yet  
+   const INDEXTYPE nnz,    // nonzeros  
+   const INDEXTYPE rows,   // number of rows for sparse matrix 
+   const INDEXTYPE cols,   // number of columns for sparse matrix 
    const VALUETYPE *val,   // NNZ value  
    const INDEXTYPE *indx,  // colids -> column indices 
    const INDEXTYPE *pntrb, // starting index for rowptr
    const INDEXTYPE *pntre, // ending index for rowptr
-   const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
+   const VALUETYPE *a,     // Dense A (X) matrix
+   const INDEXTYPE lda,    // leading dimension of A (col size since A row-major)  
    const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
+   const INDEXTYPE ldb,    // leading dimension of B (col size since B row-major)  
+   const VALUETYPE beta,   // beta value 
    VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const INDEXTYPE ldc     // leading dimension of c (col size since C row-major) 
 )
 {
 #ifdef PTTIME 
@@ -331,25 +329,25 @@ void truested_spmm_csr
 
 void truested_gcn_csr 
 (
-   const char tkern,  // 'N' 'T'
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
+   const char tkern,       // kernel variations
+   const INDEXTYPE m,      // rows of A 
+   const INDEXTYPE n,      // rows of B
+   const INDEXTYPE k,      // dimension: col of A and B
+   const VALUETYPE alpha,  // not used yet  
+   const INDEXTYPE nnz,    // nonzeros  
+   const INDEXTYPE rows,   // number of rows for sparse matrix 
+   const INDEXTYPE cols,   // number of columns for sparse matrix 
    const VALUETYPE *val,   // NNZ value  
    const INDEXTYPE *indx,  // colids -> column indices 
    const INDEXTYPE *pntrb, // starting index for rowptr
    const INDEXTYPE *pntre, // ending index for rowptr
-   const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
+   const VALUETYPE *a,     // Dense A (X) matrix
+   const INDEXTYPE lda,    // leading dimension of A (col size since A row-major)  
    const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
+   const INDEXTYPE ldb,    // leading dimension of B (col size since B row-major)  
+   const VALUETYPE beta,   // beta value 
    VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const INDEXTYPE ldc     // leading dimension of c (col size since C row-major) 
 )
 {
 #ifdef PTTIME 
@@ -420,7 +418,7 @@ void MKL_csr_mm
    
    NOTE: NOTE: 
    -----------
-   create_csr will overwrote rows_start, rows_end, col_indx and values
+   create_csr will overwrite rows_start, rows_end, col_indx and values
    So, we need to copy those here  
 */
    // copying CSR data, we will skip this copy in timing  
@@ -515,25 +513,25 @@ void MKL_csr_mm
 
 void mytrusted_csr 
 (
-   const char tkern,  // 'N' 'T'
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
+   const char tkern,       // kernel variations
+   const INDEXTYPE m,      // rows of A 
+   const INDEXTYPE n,      // rows of B
+   const INDEXTYPE k,      // dimension: col of A and B
+   const VALUETYPE alpha,  // not used yet  
+   const INDEXTYPE nnz,    // nonzeros  
+   const INDEXTYPE rows,   // number of rows for sparse matrix 
+   const INDEXTYPE cols,   // number of columns for sparse matrix 
    const VALUETYPE *val,   // NNZ value  
    const INDEXTYPE *indx,  // colids -> column indices 
    const INDEXTYPE *pntrb, // starting index for rowptr
    const INDEXTYPE *pntre, // ending index for rowptr
-   const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
+   const VALUETYPE *a,     // Dense A (X) matrix
+   const INDEXTYPE lda,    // leading dimension of A (col size since A row-major)  
    const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
+   const INDEXTYPE ldb,    // leading dimension of B (col size since B row-major)  
+   const VALUETYPE beta,   // beta value 
    VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const INDEXTYPE ldc     // leading dimension of c (col size since C row-major) 
 )
 {
    switch(tkern)
@@ -578,24 +576,21 @@ void mytrusted_csr
 
 /*=============================================================================
  * Test kernels: 
- *    We will always call fusedMM, analyzing patterns it may call optimized 
- *    kernel from there
+ *    In our new design, We will always call fusedMM, analyzing patterns it may 
+ *    call optimized kernel from there
  *
  *============================================================================*/
-/* **********************************************************************
- * Accessory funciton to compute sigmoid 
+/* 
+ * Accessory funcitons to compute sigmoid 
  */
-/* scalar scale function */
 VALUETYPE *SM_TABLE;
 inline VALUETYPE uscale_SM(VALUETYPE val)
 {
    VALUETYPE sval;
-   /* hopefully compiler will figure out and replace it max min instruction */
    sval = (val > SM_BOUND) ? SM_BOUND : val;
    sval = (val < -SM_BOUND) ? -SM_BOUND : val;
    return(sval); 
 }
-/* not even parallel ?? */
 void uinit_SM_TABLE()
 {
    VALUETYPE x;
@@ -623,9 +618,8 @@ VALUETYPE tscale(VALUETYPE v)
 }
 
 /*
- * NOTE: implementation of User defined functions differ from different model.
- * We need to enable disable it compile time!!!!
- * FIXME: How to select them runtime 
+ * NOTE: The implementation of User defined functions differ from different 
+ * models. We need to enable/disable it compile time!!!!
  */
 
 extern "C" int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out);
@@ -671,7 +665,6 @@ int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
  * Normally, users should disable the macro if they don't want to provide any 
  * implementation. We are using this dummy since we use same source for all 
  * the different executables.
- * NOTE: don't use _gcn to run sigmoid kernel
  */
 int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 {
@@ -681,7 +674,8 @@ int SOP_UDEF_FUNC(VALUETYPE val, VALUETYPE *out)
 #endif
 #if 0
 /*
- * User defined function for ROP to perform self-DOT product
+ * NOTE:  Example of a user-defined ROP and VSC funcitons for tdistribution 
+ * application. We use imsg to set the computation    
  */
 // tdist 
 int ROP_UDEF_FUNC(INDEXTYPE lhs_dim, const VALUETYPE *lhs, INDEXTYPE rhs_dim,
@@ -709,25 +703,25 @@ int VSC_UDEF_FUNC(INDEXTYPE rhs_dim, const VALUETYPE *rhs, VALUETYPE scal,
    
 void mytest_csr
 (
-   const char tkern,  // 'N' 'T'
-   const INDEXTYPE m, 
-   const INDEXTYPE n, 
-   const INDEXTYPE k, 
-   const VALUETYPE alpha, 
-   const INDEXTYPE nnz,   // nonzeros: need to recreate csr with mkl 
-   const INDEXTYPE rows,  // number of rows... not needed 
-   const INDEXTYPE cols,  // number of columns 
+   const char tkern,       // kernel variations
+   const INDEXTYPE m,      // rows of A 
+   const INDEXTYPE n,      // rows of B
+   const INDEXTYPE k,      // dimension: col of A and B
+   const VALUETYPE alpha,  // not used yet  
+   const INDEXTYPE nnz,    // nonzeros  
+   const INDEXTYPE rows,   // number of rows for sparse matrix 
+   const INDEXTYPE cols,   // number of columns for sparse matrix 
    const VALUETYPE *val,   // NNZ value  
    const INDEXTYPE *indx,  // colids -> column indices 
    const INDEXTYPE *pntrb, // starting index for rowptr
    const INDEXTYPE *pntre, // ending index for rowptr
-   const VALUETYPE *a,     // Dense B matrix
-   const INDEXTYPE lda,   // 2nd dimension of b (col size since row-major)  
+   const VALUETYPE *a,     // Dense A (X) matrix
+   const INDEXTYPE lda,    // leading dimension of A (col size since A row-major)  
    const VALUETYPE *b,     // Dense B matrix
-   const INDEXTYPE ldb,   // 2nd dimension of b (col size since row-major)  
-   const VALUETYPE beta,  // beta value 
+   const INDEXTYPE ldb,    // leading dimension of B (col size since B row-major)  
+   const VALUETYPE beta,   // beta value 
    VALUETYPE *c,           // Dense matrix c
-   const INDEXTYPE ldc    // 2nd dimension size of c (col size since roa-major) 
+   const INDEXTYPE ldc     // leading dimension of c (col size since C row-major) 
 )
 {
    int32_t imsg; 
@@ -738,21 +732,16 @@ void mytest_csr
 	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
                pntre, a, lda, b, ldb, beta, c, ldc);
          break;
-      case 'f':
-         //printf("Calling FR model!");
+      case 'f': // fr model 
 	 imsg = VOP_SUBR | ROP_NORMR | SOP_UDEF | VSC_MUL | AOP_ADD;
 	 fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb,
                pntre, a, lda, b, ldb, beta, c, ldc);
 	 break;
       case 's' : // sigmoid
-         uinit_SM_TABLE();
-         //printf("Calling fused kernel\n");
-         //imsg = VOP_COPY_LHS | ROP_DOT | SOP_UDEF | VSC_MUL | AOP_ADD;
+         uinit_SM_TABLE();    // create sigmoid table to use it from SOP_UDEF
          imsg = VOP_COPY_RHS | ROP_DOT | SOP_UDEF | VSC_MUL | AOP_ADD;
-         
          fusedMM_csr(imsg, m, n, k, alpha, nnz, rows, cols, val, indx, pntrb, 
                pntre, a, lda, b, ldb, beta, c, ldc);
-         
          break;
       case 'm' : // spmm
          imsg = VOP_COPY_RHS | ROP_NOOP | SOP_COPY | VSC_MUL | AOP_ADD;
@@ -772,13 +761,16 @@ void mytest_csr
    }
 }
 
-
-/*=============================================================================
- *          Tester framework 
- * We will redesign it with tester class later... just using template here
+/* ============================================================================
+ *       Tester framework 
+ *          We calculate floating point error bound to check the results
  * ============================================================================
  */
-// from ATLAS; ATL_epsilon.c 
+/*
+ * Find epsilon for floating point data type in the system which represents the
+ * smallest value which can be represented using the type
+ * NOTE: this implementation is taken from ATLAS (math-atlas)
+ */
 template <typename NT> 
 NT Epsilon(void)
 {
@@ -796,8 +788,13 @@ NT Epsilon(void)
    return(eps);
 }
 
+/*
+ * test the results of the outputs element by element 
+ *    C->MxN, NNZA = nonzeros, Md = max degree  
+ *    C trusted, D computed 
+ */
 template <typename IT, typename NT>
-int doChecking(IT NNZA, IT M, IT N, NT *C, NT *D, IT ldc)
+int doChecking(IT NNZA, IT M, IT N, IT Md, NT *C, NT *D, IT ldc)
 {
    IT i, j, k;
    NT diff, EPS; 
@@ -805,18 +802,36 @@ int doChecking(IT NNZA, IT M, IT N, NT *C, NT *D, IT ldc)
 
    int nerr = 0;
 /*
- * Error bound : total computation = K*NNZ + K*NNZ FMAC = 4*K*NNZ
- *               flop per element of C = 4*K*NNZ / M*K
- *
+ * Error bound : depends on application to application (sigmoid, tdist, etc)
+ *    General computations (SDDMM+SPMM) = K*NNZ + K*NNZ FMAC = 4*K*NNZ
+ *    On an average, flop per element of C = 4*K*NNZ / M*K
  */
    EPS = Epsilon<NT>();
-   // the idea is how many flop one element needs, should be max degree
-   // NOTE: avg degree will not do, since some rows may have more non-zero 
-   // 2 for opposit direction of errors 
-   ErrBound = 2 * 4 * (NNZA) * EPS; /* considering upper bound for now*/ 
+   // HERE, the idea is, we need to multiply the Epsilon with the number of 
+   // flops that one element of the output needs 
+   // NOTE: Need to multiply by 2 for the opposit direction of errors  
+   //    NOTE: considering max degree as N as upper bound. 
+   
+   // to produce each C element, we need to perform : SDDMM + SPMM
+#ifdef SIGMOID_UDEF 
+   //    SDDMM = 2*N*K + sigmoid = 6 + SPMM =  2*N*K
+   ErrBound = 2 * Md*(2*N+6+2*N) * EPS; // Here, N = K = dimension 
+#elif FR_UDEF
+   // SDDMM + SPMM 
+   ErrBound = 2 * Md*(3*N+2+2*N) * EPS; // Here, N = K = dimension 
+#elif TDIST_UDEF
+   // SDDMM + SPMM 
+   ErrBound = 2 * Md*(3*N+2+2*N) * EPS; // Here, N = K = dimension 
+#elif SPMM_UDEF
+   ErrBound = 2 * Md * 2*N * EPS; // Here, N = K = dimension 
+#elif GCN_UDEF
+   ErrBound = 2 *  Md * N * EPS; // Here, N = K = dimension 
+#else  // upper bound
+   ErrBound = 2 * 4 * (NNZA) * EPS; /* considering upper bound for now */
+#endif
+
    //cout << "--- EPS = " << EPS << " ErrBound = " << ErrBound << endl; 
-   //cout << "--- ErrBound = " << ErrBound << " NNZ(A) = " << NNZA << " N = " << N  <<endl; 
-   // row major! 
+   
    for (i=0; i < M; i++)
    {
       for (j=0; j < N; j++)
@@ -847,7 +862,9 @@ int doChecking(IT NNZA, IT M, IT N, NT *C, NT *D, IT ldc)
    }
    return(nerr);
 }
-
+/*
+ * Tester function, truested and test are templated function pointers 
+ */
 template <csr_mm_t trusted, csr_mm_t test>
 int doTesting_Acsr
 (
@@ -936,20 +953,16 @@ int doTesting_Acsr
  * Let's apply trusted and test kernels 
  */
    fprintf(stdout, "Applying trusted kernel\n");
-   //trusted(tkern, M, N, K, alpha, S.nnz, S.rows, S.cols, 
-   //        S.colids, S.rowptr, S.rowptr+1, a, lda, b, ldb, beta, c0, ldc);   
    trusted(tkern, M, N, K, alpha, S.nnz, S.rows, S.cols, values, 
            S.colids, S.rowptr, S.rowptr+1, a, lda, b, ldb, beta, c0, ldc);   
    
    fprintf(stdout, "Applying test kernel\n");
-   //test(tkern, M, N, K, alpha, S.nnz, S.rows, S.cols, 
-   //      S.colids, S.rowptr, S.rowptr+1, a, lda, b, ldb, beta, c, ldc);   
    test(tkern, M, N, K, alpha, S.nnz, S.rows, S.cols, values, 
          S.colids, S.rowptr, S.rowptr+1, a, lda, b, ldb, beta, c, ldc);   
 /*
  * check for errors 
  */
-   nerr = doChecking<INDEXTYPE, VALUETYPE>(S.nnz, M, K, c0, c, ldc);
+   nerr = doChecking<INDEXTYPE, VALUETYPE>(S.nnz, M, K, N, c0, c, ldc);
 
    free(values);
    free(pc0);
@@ -960,7 +973,7 @@ int doTesting_Acsr
    return(nerr);
 }
 /*==============================================================================
- *    Timer:  
+ *    Timer framework  
  *
  *============================================================================*/
 /*
@@ -969,82 +982,84 @@ int doTesting_Acsr
 template <typename IT>
 using csr_timer_t = vector<double> (*) 
 (
-   const int tkern,         // kernel type
-   const int nrep,         // number of repeatation 
-   const IT M,      
-   const IT N,     
-   const IT K,    
-   const VALUETYPE alpha,  // alpha
-   const IT nnz,
-   const IT rows,
-   const IT cols,
-   VALUETYPE *values,      // values
-   IT *rowptr,   
-   IT *colids,
-   const VALUETYPE *a,
-   const IT lda,
-   const VALUETYPE *b,
-   const IT ldb,
-   const VALUETYPE beta,
-   VALUETYPE *c,
-   const IT ldc
+   const int tkern,        // kernel type
+   const int nrep,         // number of repetition  
+   const IT M,             // rows of A 
+   const IT N,             // rows of B
+   const IT K,             // feature dimension: col of A and B
+   const VALUETYPE alpha,  // alpha, not used yet
+   const IT nnz,           // nonzeros
+   const IT rows,          // rows of sparse matrix
+   const IT cols,          // col of sparse matrix 
+   VALUETYPE *values,      // nonzero values
+   IT *rowptr,             // rowptr of sparse matrix 
+   IT *colids,             // col id of sparse matrix 
+   const VALUETYPE *a,     // Dense A matrix
+   const IT lda,           // leading dimension of A 
+   const VALUETYPE *b,     // Dense B matrix
+   const IT ldb,           // leading dimension of B
+   const VALUETYPE beta,   // beta  
+   VALUETYPE *c,           // Dense C matrix
+   const IT ldc            // leading dimension of C
 );
+// Cache flushing timer 
 template <typename IT>
 using csr_timer_cf_t = vector<double> (*) 
 (
-   const IT ndsets,
-   const IT wdsz,
-   const IT nisets,
-   const IT wisz,
-   const int nrep,         // number of repeatation 
-   const int tkern,         // kernel type
-   const IT M,      
-   const IT N,     
-   const IT K,    
-   const VALUETYPE alpha,  // alpha
-   const IT nnz,
-   const IT rows,
-   const IT cols,
-   VALUETYPE *values,      // values
-   IT *rowptr,   
-   IT *colids,
-   const VALUETYPE *a,
-   const IT lda,
-   const VALUETYPE *b,
-   const IT ldb,
-   const VALUETYPE beta,
-   VALUETYPE *c,
-   const IT ldc
+   const IT ndsets,        // number of data set
+   const IT wdsz,          // data workspace size
+   const IT nisets,        // number of index set
+   const IT wisz,          // index workspace size
+   const int nrep,         // number of repetition 
+   const int tkern,        // kernel type
+   const IT M,             // rows of A 
+   const IT N,             // rows of B
+   const IT K,             // feature dimension: cols of A and B
+   const VALUETYPE alpha,  // alpha, not used yet
+   const IT nnz,           // nonzeros
+   const IT rows,          // rows of sparse matrix
+   const IT cols,          // cols of sparse matrix
+   VALUETYPE *values,      // nnz values
+   IT *rowptr,             // row pointer of sparse 
+   IT *colids,             // colid of sparse
+   const VALUETYPE *a,     // dense A 
+   const IT lda,           // leading dimension of A
+   const VALUETYPE *b,     // dense B
+   const IT ldb,           // leading dimension of B
+   const VALUETYPE beta,   // beta
+   VALUETYPE *c,           // dense C
+   const IT ldc            // leading dimension of C
 );
 /*
  * Kernel timer wrapper for trusted kernel.. 
- * This wrapper handles all extra setup needed to call a library, like: MKL
+ * This wrapper handles all extra setup needed to call a library, 
+ * For Example: MKL uses inspection and execution model  
  */
 vector<double> callTimerTrusted_Acsr
 (
-   const int tkern,      // ROW_MAJOR, INDEX_BASE_ZERO 
-   const int nrep,      // number of repeatation 
-   const INDEXTYPE M,
-   const INDEXTYPE N,
-   const INDEXTYPE K, // A.cols
-   const VALUETYPE alpha,
-   const INDEXTYPE nnz,
-   const INDEXTYPE rows,
-   const INDEXTYPE cols,
-   VALUETYPE *values, 
-   INDEXTYPE *rowptr,
-   INDEXTYPE *colids,
-   const VALUETYPE *a,     
-   const INDEXTYPE lda,   
-   const VALUETYPE *b,
-   const INDEXTYPE ldb,
-   const VALUETYPE beta,
-   VALUETYPE *c,
-   const INDEXTYPE ldc
+   const int tkern,        // kernel type
+   const int nrep,         // number of repetition  
+   const INDEXTYPE M,      // rows of A 
+   const INDEXTYPE N,      // rows of B
+   const INDEXTYPE K,      // feature dimension: col of A and B
+   const VALUETYPE alpha,  // alpha, not used yet
+   const INDEXTYPE nnz,    // nonzeros
+   const INDEXTYPE rows,   // rows of sparse matrix
+   const INDEXTYPE cols,   // col of sparse matrix 
+   VALUETYPE *values,      // nonzero values 
+   INDEXTYPE *rowptr,      // rowptr of sparse matrix 
+   INDEXTYPE *colids,      // col id of sparse matrix 
+   const VALUETYPE *a,     // Dense A matrix  
+   const INDEXTYPE lda,    // leading dimension of A 
+   const VALUETYPE *b,     // Dense B matrix
+   const INDEXTYPE ldb,    // leading dimension of B
+   const VALUETYPE beta,   // beta  
+   VALUETYPE *c,           // Dense C matrix
+   const INDEXTYPE ldc     // leading dimension of C
 )
 {
    double start, end;
-   vector <double> results;  // don't use single precision, use double  
+   vector <double> results;    
 /*
  * NOTE: 
  *    flag can be used to select different option, like: ROW_MAJOR, 
@@ -1073,32 +1088,35 @@ vector<double> callTimerTrusted_Acsr
    return(results);
 }
 
-// cache blocking version 
+// Cache flushing timer 
+// NOTE: If the dataset is small enough to fit in cache, we want to use this 
+// cache flushing timer. calling for all cases now since for larger data, it will 
+// create only one working set 
 vector<double> callCFTimerTrusted_Acsr
 (
-   const INDEXTYPE ndsets,
-   const INDEXTYPE wdsz,
-   const INDEXTYPE nisets,
-   const INDEXTYPE wisz,
-   const int nrep,      // number of repeatation 
-   const int tkern,      // ROW_MAJOR, INDEX_BASE_ZERO 
-   const INDEXTYPE M,
-   const INDEXTYPE N,
-   const INDEXTYPE K, // A.cols
-   const VALUETYPE alpha,
-   const INDEXTYPE nnz,
-   const INDEXTYPE rows,
-   const INDEXTYPE cols,
-   VALUETYPE *values, 
-   INDEXTYPE *rowptr,
-   INDEXTYPE *colids,
-   const VALUETYPE *a,     
-   const INDEXTYPE lda,   
-   const VALUETYPE *b,
-   const INDEXTYPE ldb,
-   const VALUETYPE beta,
-   VALUETYPE *c,
-   const INDEXTYPE ldc
+   const INDEXTYPE ndsets,    // number of data set in cache
+   const INDEXTYPE wdsz,      // data workspace size in cache
+   const INDEXTYPE nisets,    // number of index set in cache
+   const INDEXTYPE wisz,      // index workspace size in cache
+   const int nrep,            // number of repetition
+   const int tkern,           // kernel type 
+   const INDEXTYPE M,         // rows of A
+   const INDEXTYPE N,         // rows of B
+   const INDEXTYPE K,         // col of A and B
+   const VALUETYPE alpha,     // not used
+   const INDEXTYPE nnz,       // non zeros
+   const INDEXTYPE rows,      // rows of sparse matrix
+   const INDEXTYPE cols,      // cols of sparse matrix
+   VALUETYPE *values,         // non zero values
+   INDEXTYPE *rowptr,         // row ptr of sparse
+   INDEXTYPE *colids,         // col id of sparse
+   const VALUETYPE *a,        // dense A
+   const INDEXTYPE lda,       // lda of A
+   const VALUETYPE *b,        // dense B
+   const INDEXTYPE ldb,       // ld of B
+   const VALUETYPE beta,      // beta
+   VALUETYPE *c,              // dense C
+   const INDEXTYPE ldc        // ld of C
 )
 {
    INDEXTYPE nds = ndsets;
@@ -1144,7 +1162,7 @@ vector<double> callCFTimerTrusted_Acsr
 vector<double> callTimerMKL_Acsr
 (
    const int tkern,      // always 'm'
-   const int nrep,      // number of repeatation 
+   const int nrep,       
    const MKL_INT M,
    const MKL_INT N,
    const MKL_INT K, 
@@ -1252,12 +1270,12 @@ vector<double> callTimerMKL_Acsr
 #endif   /* END OF TIME_MKL */
 
 /*
- * timer wrapper for test kernel 
+ * Non cache flushing timer wrapper for test kernel 
  */
 vector<double> callTimerTest_Acsr
 (
-   const int tkern,      // kernel type  
-   const int nrep,      // number of repeatation 
+   const int tkern,        
+   const int nrep,       
    const INDEXTYPE M,
    const INDEXTYPE N,
    const INDEXTYPE K, 
@@ -1325,31 +1343,32 @@ vector<double> callTimerTest_Acsr
    return(results);
 }
 
+// Cache flushing timer wrapper for test kernels  
 vector<double> callCFTimerTest_Acsr
 (
-   const INDEXTYPE ndsets,
-   const INDEXTYPE wdsz,
-   const INDEXTYPE nisets,
-   const INDEXTYPE wisz,
-   const int nrep,      // number of repeatation 
-   const int tkern,      // kernel type  
-   const INDEXTYPE M,
-   const INDEXTYPE N,
-   const INDEXTYPE K, 
-   const VALUETYPE alpha,
-   const INDEXTYPE nnz,
-   const INDEXTYPE rows,
-   const INDEXTYPE cols,
-   VALUETYPE *values, 
-   INDEXTYPE *rowptr,
-   INDEXTYPE *colids,
-   const VALUETYPE *a,     
-   const INDEXTYPE lda,   
-   const VALUETYPE *b,
-   const INDEXTYPE ldb,
-   const VALUETYPE beta,
-   VALUETYPE *c,
-   const INDEXTYPE ldc
+   const INDEXTYPE ndsets,    // number of data set in cache
+   const INDEXTYPE wdsz,      // data workspace size in cache
+   const INDEXTYPE nisets,    // number of index set in cache
+   const INDEXTYPE wisz,      // index workspace size in cache
+   const int nrep,            // number of repetition
+   const int tkern,           // kernel type 
+   const INDEXTYPE M,         // rows of A
+   const INDEXTYPE N,         // rows of B
+   const INDEXTYPE K,         // col of A and B
+   const VALUETYPE alpha,     // not used
+   const INDEXTYPE nnz,       // non zeros
+   const INDEXTYPE rows,      // rows of sparse matrix
+   const INDEXTYPE cols,      // cols of sparse matrix
+   VALUETYPE *values,         // non zero values
+   INDEXTYPE *rowptr,         // row ptr of sparse
+   INDEXTYPE *colids,         // col id of sparse
+   const VALUETYPE *a,        // dense A
+   const INDEXTYPE lda,       // lda of A
+   const VALUETYPE *b,        // dense B
+   const INDEXTYPE ldb,       // ld of B
+   const VALUETYPE beta,      // beta
+   VALUETYPE *c,              // dense C
+   const INDEXTYPE ldc        // ld of C
 )
 {
    INDEXTYPE nds = ndsets;
@@ -1394,7 +1413,7 @@ vector<double> callCFTimerTest_Acsr
 }
 
 /*
- * Assuming large working set, sizeof B+D > L3 cache 
+ * Non cache flushing timer: assuming large working set, sizeof B+D > L3 cache 
  */
 template<typename IT, csr_timer_t<IT> CSR_TIMER>
 vector <double> doTiming_Acsr
@@ -1415,7 +1434,6 @@ vector <double> doTiming_Acsr
    vector <double> results; 
    double start, end;
    IT nnz, rows, cols;
-   //size_t szB, szC, ldb, ldc; 
    IT szA, szB, szC, lda, ldb, ldc; 
    VALUETYPE *pa, *a, *pb, *b, *pc, *c, *values;
    IT *rowptr, *colids;
@@ -1506,7 +1524,10 @@ vector <double> doTiming_Acsr
    return(results);
 }
 /*
- * Cache Flushing:  
+ * Cache Flushing timer:  
+ * NOTE: If the dataset is small enough to fit in cache, we want to use this 
+ * cache flushing timer. calling for all cases now since for larger data, it will 
+ * create only one working set 
  */
 template<typename IT, csr_timer_cf_t<IT> CSR_TIMER>
 vector <double> doCFTiming_Acsr
@@ -1527,7 +1548,6 @@ vector <double> doCFTiming_Acsr
    vector <double> results; 
    double start, end;
    IT nnz, rows, cols;
-   //size_t szB, szC, ldb, ldc; 
    IT szA, szB, szC, lda, ldb, ldc; 
    IT szM, szNNZ, csz, dsz, ndsets;
    IT nisets, isz;
@@ -1552,7 +1572,7 @@ vector <double> doCFTiming_Acsr
  * Each workset will occupy at least the size of csKB. So, if csKB is size of
  * last level cache, total workset will be double the cache size.
  * Since we can not allocate memory for two different datatype in a same 
- * workspace, we have to do it seperately.
+ * workspace, we have to do it separately.
  */
    csz = csKB*1024/sizeof(VALUETYPE);
    szAligned = ATL_Cachelen / sizeof(VALUETYPE);
@@ -1654,8 +1674,7 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
    S_csc.Sorted(); 
    N = S_csc.cols; 
    
-   //cout << "K = " << K << endl; 
-   // genetare CSR version of A  
+   // generate CSR version of A  
    S_csr0.make_empty(); 
    S_csr0 = *(new CSR<INDEXTYPE, VALUETYPE>(S_csc));
    S_csr0.Sorted();
@@ -1704,12 +1723,18 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
 #ifdef TIME_MKL
       // call Trusted mkl code 
       assert(tkern == 'm'); // only spmm 
-      res0 = doTiming_Acsr<MKL_INT, callTimerMKL_Acsr>(S_csr0, M, N, K, 
+      //res0 = doTiming_Acsr<MKL_INT, callTimerMKL_Acsr>(S_csr0, M, N, K, 
+      //            alpha, beta, csKB, nrep, tkern);
+      
+      // cache flushing timer 
+      res0 = doCFTiming_Acsr<MKL_INT, callTimerMKL_Acsr>(S_csr0, M, N, K, 
                   alpha, beta, csKB, nrep, tkern);
 #else
       // call Trusted ... c code 
       //res0 = doTiming_Acsr<INDEXTYPE, callTimerTrusted_Acsr>(S_csr0, M, N, K, 
       //            alpha, beta, csKB, nrep, tkern);
+      
+      // Cache flushing timer 
       res0 = doCFTiming_Acsr<INDEXTYPE, callCFTimerTrusted_Acsr>(S_csr0, M, N, K, 
                   alpha, beta, csKB, nrep, tkern);
 #endif
@@ -1718,17 +1743,14 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
       
       //res1 = doTiming_Acsr<INDEXTYPE, callTimerTest_Acsr>(S_csr0, M, N, K, 
       //            alpha, beta, csKB, nrep, tkern);
+      
+      // Cache flushing timer 
       res1 = doCFTiming_Acsr<INDEXTYPE, callCFTimerTest_Acsr>(S_csr0, M, N, K, 
                   alpha, beta, csKB, nrep, tkern);
-      //cout << "      blkid = " << blkid << " ExeTime = " << res1[1] << endl;    
+      
       inspTime1 += res1[0];
       exeTime1 += res1[1];
    }
-   //inspTime0 /= nrblk; 
-   //inspTime1 /= nrblk; 
-   
-    //exeTime0 /= nrblk; 
-   //exeTime1 /= nrblk; 
    
    if(!skipHeader) 
    {
@@ -1832,7 +1854,6 @@ void GetFlags(int narg, char **argv, string &inputfile, int &option,
 
    isTest = 0; 
    nrep = 20;
-   //nrblk = 1;
    skHd = 0; // by default print header
    csKB = 25344; // L3 in KB 
    
