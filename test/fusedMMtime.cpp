@@ -1267,6 +1267,7 @@ vector<double> callTimerMKL_Acsr
    mkl_sparse_destroy(Amkl);
    return(results);
 }
+
 #endif   /* END OF TIME_MKL */
 
 /*
@@ -1693,18 +1694,9 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
    assert(N && M && K);
    if (isTest)
    {
-#if 0
-   #ifdef DREAL
-      nerr = doTesting_Acsr<mytrusted_csr, dgfusedMM_csr>
-                               (S_csr0, M, N, K, alpha, beta, tkern); 
-   #else
-      nerr = doTesting_Acsr<mytrusted_csr, sgfusedMM_csr>
-                               (S_csr0, M, N, K, alpha, beta, tkern); 
-   #endif
-#else // calling general fusedmm 
+      // passed mytrusted and mytest function pointers 
       nerr = doTesting_Acsr<mytrusted_csr, mytest_csr>
                                (S_csr0, M, N, K, alpha, beta, tkern); 
-#endif
       // error checking 
       if (!nerr)
          fprintf(stdout, "PASSED TEST\n");
@@ -1720,33 +1712,44 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
  */
    inspTime0 = inspTime1 = exeTime0 = exeTime1 = 0.0;
    {
-#ifdef TIME_MKL
+
+#ifdef TIME_MKL  // when trusted as MKL  (only supports SPMM)
+      
       // call Trusted mkl code 
       assert(tkern == 'm'); // only spmm 
-      //res0 = doTiming_Acsr<MKL_INT, callTimerMKL_Acsr>(S_csr0, M, N, K, 
-      //            alpha, beta, csKB, nrep, tkern);
       
-      // cache flushing timer 
-      res0 = doCFTiming_Acsr<MKL_INT, callTimerMKL_Acsr>(S_csr0, M, N, K, 
+      // non cache flushing timers, no cache flushing timer for MKL
+      res0 = doTiming_Acsr<MKL_INT, callTimerMKL_Acsr>(S_csr0, M, N, K, 
                   alpha, beta, csKB, nrep, tkern);
-#else
-      // call Trusted ... c code 
+      
+      // test kernel with non cache flushing timer 
+      res1 = doTiming_Acsr<INDEXTYPE, callTimerTest_Acsr>(S_csr0, M, N, K, 
+                  alpha, beta, csKB, nrep, tkern);
+
+#else // Trusted kernels as 
+      // call Trusted kernel
+      
+      // non cache flushing 
       //res0 = doTiming_Acsr<INDEXTYPE, callTimerTrusted_Acsr>(S_csr0, M, N, K, 
       //            alpha, beta, csKB, nrep, tkern);
       
       // Cache flushing timer 
       res0 = doCFTiming_Acsr<INDEXTYPE, callCFTimerTrusted_Acsr>(S_csr0, M, N, K, 
                   alpha, beta, csKB, nrep, tkern);
-#endif
-      inspTime0 += res0[0];
-      exeTime0 += res0[1];
       
+      // call test kernels
+
+      // non cache flushing 
       //res1 = doTiming_Acsr<INDEXTYPE, callTimerTest_Acsr>(S_csr0, M, N, K, 
       //            alpha, beta, csKB, nrep, tkern);
       
       // Cache flushing timer 
       res1 = doCFTiming_Acsr<INDEXTYPE, callCFTimerTest_Acsr>(S_csr0, M, N, K, 
                   alpha, beta, csKB, nrep, tkern);
+#endif
+      inspTime0 += res0[0];
+      exeTime0 += res0[1];
+      
       
       inspTime1 += res1[0];
       exeTime1 += res1[1];
