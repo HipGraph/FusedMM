@@ -359,6 +359,37 @@ $(BIN)/x$(pre)@(fmm)time_@(kn)@(pt): $(BIN)/$(pre)FusedMMtime_@(kn)@(pt).o \
    @undef pflg
    @undef lib
 @endwhile 
+
+#
+# GPU implementation
+#     NOTE: testing with only modified sigmoid implementation for now 
+#
+acc : $(BIN)/x$(pre)FusedMMtimeCU_sigmoid 
+	$(BIN)/x$(pre)FusedMMtimeCU_sigmoid -input dataset/harvard.mtx -T 1 -K $(d)  
+
+AKdir = ./cuda-kernels
+ACC = nvcc
+CUDA_HOME = /usr/local/cuda-11.1
+#ACCINC = -I$(CUDA_HOME)/include 
+
+### NOTE: to include debug code 
+ACCINC = -I$(CUDA_HOME)/include -I$(CUDA_HOME)/samples/common/inc/
+ACCLIB = -L$(CUDA_HOME)/lib64 -lcudart
+
+ACCFLAGS = -lineinfo -arch=sm_75 --ptxas-options=-v --use_fast_math
+
+$(BIN)/$(pre)cufusedmm.o: $(AKdir)/fusedmm.cu
+	$(ACC) $(AKdir)/fusedmm.cu $(TYPFLAGS) -c -o $@ $(ACCINC) $(ACCFLAGS)
+
+$(BIN)/$(pre)FusedMMtimeCU_sigmoid.o: $(Tdir)/fusedMMtime.cpp fusedMM.h \
+   $(KINCdir)/kernels.h  
+	$(CPP) $(CPPFLAGS) $(TYPFLAGS) -I$(KINCdir) -DCUDA_KERN -DSIGMOID_UDEF \
+	   -DCPP  -c $(Tdir)/fusedMMtime.cpp -o $@  
+
+$(BIN)/x$(pre)FusedMMtimeCU_sigmoid: $(BIN)/$(pre)FusedMMtimeCU_sigmoid.o \
+   $(BIN)/$(pre)FusedMM.o $(BIN)/$(pre)cufusedmm.o $(sLIBs)  
+	$(CPP) $(CPPFLAGS) $(ACCINC) -o $@ $^ $(sLIBs) -lm $(ACCLIB)
+
 #
 # cleanup 
 #

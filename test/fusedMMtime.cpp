@@ -820,7 +820,7 @@ NT Epsilon(void)
 }
 
 template <typename IT, typename NT>
-int doChecking(IT NNZA, IT M, IT N, NT *C, NT *D, IT ldc)
+int doChecking(IT NNZA, IT M, IT N, IT Md, NT *C, NT *D, IT ldc)
 {
    IT i, j, k;
    NT diff, EPS; 
@@ -834,13 +834,35 @@ int doChecking(IT NNZA, IT M, IT N, NT *C, NT *D, IT ldc)
  *
  */
    EPS = Epsilon<NT>();
-   // the idea is how many flop one element needs, should be max degree
-   // NOTE: avg degree will not do, since some rows may have more non-zero 
-   // 2 for opposit direction of errors 
-   ErrBound = 2 * 4 * (NNZA) * EPS; /* considering upper bound for now*/ 
+   // HERE, the idea is, we need to multiply the Epsilon with the number of 
+   // flops that one element of the output needs 
+   // NOTE: Need to multiply by 2 for the opposit direction of errors  
+   //    NOTE: considering max degree as N as upper bound. 
+   
+   // to produce each C element, we need to perform : SDDMM + SPMM
+#ifdef SIGMOID_UDEF 
+   #ifdef CUDA_KERN
+      // skipping sigmoid calc for cuda implementation for now 
+      ErrBound = 2 * Md*(2*N+2*N) * EPS; // Here, N = K = dimension 
+   #else
+      //    SDDMM = 2*N*K + sigmoid = 6 + SPMM =  2*N*K
+      ErrBound = 2 * Md*(2*N+6+2*N) * EPS; // Here, N = K = dimension 
+   #endif
+#elif FR_UDEF
+   // SDDMM + SPMM 
+   ErrBound = 2 * Md*(3*N+2+2*N) * EPS; // Here, N = K = dimension 
+#elif TDIST_UDEF
+   // SDDMM + SPMM 
+   ErrBound = 2 * Md*(3*N+2+2*N) * EPS; // Here, N = K = dimension 
+#elif SPMM_UDEF
+   ErrBound = 2 * Md * 2*N * EPS; // Here, N = K = dimension 
+#elif GCN_UDEF
+   ErrBound = 2 *  Md * N * EPS; // Here, N = K = dimension 
+#else  // upper bound
+   ErrBound = 2 * 4 * (NNZA) * EPS; /* considering upper bound for now */
+#endif
    //cout << "--- EPS = " << EPS << " ErrBound = " << ErrBound << endl; 
-   //cout << "--- ErrBound = " << ErrBound << " NNZ(A) = " << NNZA << " N = " << N  <<endl; 
-   // row major! 
+   
    for (i=0; i < M; i++)
    {
       for (j=0; j < N; j++)
@@ -977,7 +999,7 @@ int doTesting_Acsr
 /*
  * check for errors 
  */
-   nerr = doChecking<INDEXTYPE, VALUETYPE>(S.nnz, M, K, c0, c, ldc);
+   nerr = doChecking<INDEXTYPE, VALUETYPE>(S.nnz, M, K, N, c0, c, ldc);
 
    free(values);
    free(pc0);
@@ -1388,6 +1410,10 @@ vector<double> callCFTimerTest_Acsr
    {
       results.push_back(0.0); // no inspection phase 
    }
+#if 1
+   cout << "nds = " << nds << ", nis = " << nis << ", nrep = " << nrep << endl;
+
+#endif
    start = omp_get_wtime();
    for (int i=0; i < nrep; i++)
    {
@@ -1736,18 +1762,18 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
                   alpha, beta, csKB, nrep, tkern);
 #else
       // call Trusted ... c code 
-      //res0 = doTiming_Acsr<INDEXTYPE, callTimerTrusted_Acsr>(S_csr0, M, N, K, 
-      //            alpha, beta, csKB, nrep, tkern);
-      res0 = doCFTiming_Acsr<INDEXTYPE, callCFTimerTrusted_Acsr>(S_csr0, M, N, K, 
+      res0 = doTiming_Acsr<INDEXTYPE, callTimerTrusted_Acsr>(S_csr0, M, N, K, 
                   alpha, beta, csKB, nrep, tkern);
+      //res0 = doCFTiming_Acsr<INDEXTYPE, callCFTimerTrusted_Acsr>(S_csr0, M, N, K, 
+      //            alpha, beta, csKB, nrep, tkern);
 #endif
       inspTime0 += res0[0];
       exeTime0 += res0[1];
       
-      //res1 = doTiming_Acsr<INDEXTYPE, callTimerTest_Acsr>(S_csr0, M, N, K, 
-      //            alpha, beta, csKB, nrep, tkern);
-      res1 = doCFTiming_Acsr<INDEXTYPE, callCFTimerTest_Acsr>(S_csr0, M, N, K, 
+      res1 = doTiming_Acsr<INDEXTYPE, callTimerTest_Acsr>(S_csr0, M, N, K, 
                   alpha, beta, csKB, nrep, tkern);
+      //res1 = doCFTiming_Acsr<INDEXTYPE, callCFTimerTest_Acsr>(S_csr0, M, N, K, 
+      //            alpha, beta, csKB, nrep, tkern);
       //cout << "      blkid = " << blkid << " ExeTime = " << res1[1] << endl;    
       inspTime1 += res1[0];
       exeTime1 += res1[1];
