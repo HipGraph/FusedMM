@@ -1,20 +1,20 @@
 #!/bin/sh 
 #
-#  configure script to setup Make.inc file 
-#     path, arch flags 
+#  configure script to setup Makefile, kernels/Make.inc, kernels/Makefile, 
+#     kernels/rungen.sh  
 #  dependencies : 
 #  shell built-in deps: echo
-
-#option in config 
-#path=`echo $0`
-path=`echo $0 | sed -e "s/configure$//"`
-#echo $path 
-
-topdir=`pwd`
+#  other dependencies:  sed, awk, uname, lscpu for linux / sysctl for macOS 
 
 #
-#  configure should be call inside kernel dir, don't create extra build 
-#     directory for it
+#  Setting paths 
+#
+path=`echo $0 | sed -e "s/configure$//"`
+#echo $path 
+topdir=`pwd`
+#
+#  configure should be called directly from the main project directory, 
+#  Please do NOT create extra build directory to run configure
 #
 if test "$path" != "./" 
 then
@@ -22,15 +22,17 @@ then
    ctopdir=$topdir/
    if test "$path" != "$ctopdir"
    then
-      echo "run configure from same dir as kernels!"
+      echo "run configure from the project dir and use ./configure"
       exit 1
    fi
 fi
 topkdir=$topdir/kernels
 
 #
-#  MacOS uses different commands
-#     NOTE: This version is not compatible with macOS yet  
+#  MacOS uses different commands, even same commands may use different arguments
+#     (e.g., sed -i)
+#     NOTE: This version is not compatible with macOS yet because of 'sed -i'
+#        changing it with 'sed -i""' may work 
 #
 OSGUESS=`uname`
 flag=`echo "$OSGUESS" | sed -e "s/Darwin//"`  # removed the Darwin if exists
@@ -40,7 +42,7 @@ if test "$flag" != $OSGUESS
       exit 1
 fi
 #
-#  compiler 
+#  detecting compiler, gcc and g++ are required (dependencies on openmp)  
 #
 echo "Checking for gcc ... ... "
 cc=`gcc --version | grep -e gcc`
@@ -53,7 +55,7 @@ then
       #cc=`clang --version | grep clang`
       #if [ -z "$cc" ]
       #then
-      #   echo "Atleast clang is required on MacOS!"
+      #   echo "At least clang is required on MacOS!"
       #   exit 1
       #fi
       echo "gcc is required, even in MacOS to get openmp!"
@@ -68,9 +70,10 @@ echo "--- $cc"
 cc=gcc    # gcc command should work on macOS even it's using clang 
 
 #
-# create makefiles
-#  TODO: we will diectly create the updated Makefiles from basefile
-#        No need to generate then edit...
+# Generate makefiles 
+#  - before detecting the hardware so that it can be updated manually when 
+#     hardware detection fails. You may need to copy the kernels/CONFIG/rungen.top
+#     to kernels/rungen.sh and update it manuall as well (if configure fails).  
 #
 echo "Compiling code generator tool ... ... " 
 mkdir -p $topkdir/bin
@@ -95,7 +98,7 @@ newkcc="KCC = $cc"
 sed -i "s/$oldkcc/$newkcc/g" $topkdir/Make.inc
 
 #
-#  find system arch 
+#  Detect system arch 
 #
 echo "Figuring out the architecture of the system ... ... "
 # if macOS 
@@ -139,7 +142,7 @@ sed -i "s/$oldarch/$newarch/g" $topkdir/Make.inc
 echo "--- $arch"
 
 #
-#  find SIMD unit 
+#  Detect SIMD unit 
 #
 echo "Figuring out the SIMD unit of the system ... ... "
 svlen=
