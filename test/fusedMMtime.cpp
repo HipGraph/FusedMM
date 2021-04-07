@@ -1739,6 +1739,11 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
          fprintf(stdout, "FAILED TEST, %d ELEMENTS\n", nerr);
          exit(1); // test failed, not timed 
       }
+#ifdef CUDA_KERN
+      cout << "Use cuda profiler to analyze the performance!!!" << endl;
+      cout << "Openmp timer is disabled for it!" << endl; 
+      return;
+#endif
    }
 /*
  * Now, it's time to add timer 
