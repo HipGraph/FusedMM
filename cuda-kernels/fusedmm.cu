@@ -1,12 +1,31 @@
 /*
- *    CUDA implementation for fusedmm 
+ *    1st version of CUDA implementation for fusedmm_sigmoid 
+ *    
+ *    Assumptions:
+ *    =============
+ *    1. Feature dimension (K) is multiple of 32 (warp-size). This kernel is NOT 
+ *       optimized for smaller K, may perform well for K >= 512 since we 
+ *       restricted the number of threads to be the feature dimension. That means,
+ *       one block will work on single row. We will extend it to work on 
+ *       multiple rows in next version which will improve the performance of
+ *       smaller feature dimension K. Note that this kernel only works
+ *       for K <= 1024.
+ *    2. We assume that if the dense matrices are blocked, they are already copied
+ *       in row-major format so that the lda is equal to the number of column.
+ *    3. Implemented case: alpha = 1 and beta = 0 
  */ 
 #include<cassert>
 #include<cstdio>
 
-
-/* to run debug codes */
-#include "helper_cuda.h"
+// to profile the code 
+#ifdef ENABLE_PROFILING
+   #include <cuda_profiler_api.h>
+#endif
+// to enable debug code 
+//#define DEBUG 1 
+#ifdef DEBUG 
+   #include "helper_cuda.h"
+#endif
 
 #ifdef DREAL
    #define VALUETYPE double
@@ -14,20 +33,9 @@
    #define VALUETYPE float
 #endif
 
-
-#define DEBUG 1 
-
-
 /*
- * NOTE: 
- *    Special kernel with following restriction:
- *      1. considering ldx = ldy = k = blockdim.x
- *      2. alpha = 1 and beta = 0 
- *      3. we are not using the val array of the adjMatrix 
- */
-
-/*
- * NOTE: the idea is taken from NVIDIA's reduction slide 
+ * NOTE: the idea behind of the reduction code is taken from NVIDIA's slide 
+ *    Ref : https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
  */
 
 template <unsigned int BLOCKSIZE>
@@ -56,16 +64,16 @@ __device__ void warpReduce
 template <unsigned int BLOCKSIZE>
 __global__ void sfusedMMcu_sigmoid_a1b0_csr
 (
-   const INDEXTYPE m,      // rows of dense X and A matrix
-   const INDEXTYPE n,      // rows of dense Y matrix and col of A matrix 
-   const INDEXTYPE k,      // column dimension of X or X, d in paper  
-   //const INDEXTYPE nnz,    // nonzeros: need to recreate csr with mkl 
-   //const VALUETYPE *val,   // NNZ value  
-   INDEXTYPE *rowptr,  // colids -> column indices 
-   INDEXTYPE *colid, // starting index for rowptr
-   VALUETYPE *x,     // Dense X matrix
-   VALUETYPE *y,     // Dense Y matrix
-   VALUETYPE *z           // Dense matrix z
+   const INDEXTYPE m,         // rows of dense X and A matrix
+   const INDEXTYPE n,         // rows of dense Y matrix and col of A matrix 
+   const INDEXTYPE k,         // column dimension of X or X, d in paper  
+   //const INDEXTYPE nnz,     // nonzeros: need to recreate csr with mkl 
+   //const VALUETYPE *val,    // NNZ value  
+   INDEXTYPE *rowptr,         // colids -> column indices 
+   INDEXTYPE *colid,          // starting index for rowptr
+   VALUETYPE *x,              // Dense X matrix
+   VALUETYPE *y,              // Dense Y matrix
+   VALUETYPE *z               // Dense matrix z
 )
 {
    INDEXTYPE i = blockIdx.x; // each block work on a single row 
@@ -79,7 +87,7 @@ __global__ void sfusedMMcu_sigmoid_a1b0_csr
 
    // share memory to reduce the attrc force, size depends on nthreads 
    extern  __shared__  float temp[];
-
+   temp[tid] = 0;
 
    // compute for each nonzero in corresponding row, normally avg degree is small
    for (INDEXTYPE j = rowptr[i]; j < rowptr[i+1]; j++)
@@ -87,31 +95,33 @@ __global__ void sfusedMMcu_sigmoid_a1b0_csr
       INDEXTYPE colidj = colid[j];
       INDEXTYPE jindex = colidj * blockDim.x;  // blockDim.x = k 
       VALUETYPE ry = y[jindex+tid];
+/*
+ *    VOP operation: element wise multiplication 
+ */
       VALUETYPE attrc = rx * ry;
-
-#ifdef USE_WARP_SHUFFLE
-      // TODO: possible to do it with warp shuffle and using less share mem 
-      // need to compare timing results 
-#else
+/*
+ *    ROP operation: sum reduction
+ */
       temp[tid] = attrc; // each thd in a block save its copy in share mem  
       __syncthreads();
       
-      /*
-       * NOTE: using similar idea as stated in NVIDIA's reduction slide
-       */
-
       // reduceing to data in single warp 
-      if (BLOCKSIZE >= 512)
+      if (BLOCKSIZE > 512)
+      {
+         if (tid < 512) temp[tid] += temp[tid+512]; 
+         __syncthreads();
+      }
+      if (BLOCKSIZE > 256)
       {
          if (tid < 256) temp[tid] += temp[tid+256]; 
          __syncthreads();
       }
-      if (BLOCKSIZE >= 256)
+      if (BLOCKSIZE > 128)
       {
          if (tid < 128) temp[tid] += temp[tid+128]; 
          __syncthreads();
       }
-      if (BLOCKSIZE >= 128)
+      if (BLOCKSIZE > 64)
       {
          if (tid < 64) temp[tid] += temp[tid+64]; 
          __syncthreads();
@@ -122,15 +132,21 @@ __global__ void sfusedMMcu_sigmoid_a1b0_csr
       
       __syncthreads();
       attrc = temp[0];  // already reduced in temp[0] 
-
-#endif
-   
-      // After reduction, apply SOP ... for now, just scal it  by 0.5 
-      //VALUETYPE d1 = fast_SM(attrc);
+/*
+ *    SOP: need to apply sigmoid function later. Just to show proof of concept
+ *        we are applying scaling 
+ */
+      //VALUETYPE d1 = exp(attrc);
       VALUETYPE d1 = 0.5 * attrc;
+/*
+ *    VSC + AOP operation 
+ */
       //rz += d1 * ry;
       rz += (1.0-d1) * ry;
    }
+/*
+ * Update the output only once outside the loop 
+ */
    z[id] = rz; // update z 
 }
 
@@ -158,20 +174,11 @@ extern void fusedMMcu_csr
 )
 {
 
-/*
- *  first strategy: 
-      1. consider 1024 >= k >= 128 and multiple of warp threads (32), time first 
-      with k = 128, 256, 512 and 1024
-      2. employ k threads in a block 
-      3. grid dimension = total blocks = number of rows, m
+#ifdef ENABLE_PROFILING
+   // starting the profiler 
+   cudaProfilerStart(); 
+#endif 
 
-      use const memory for indx, pntrn pntre, x and y???
- *    
- */
-   
-   // FIXME: use constant memory :  __const__ ... very limited storage!!!  
-   // assumption: pntrb has m+1 element... so can be used as rowptr
-   //VALUETYPE *d_m, *d_n, *d_k; // device copy of m, n, k variable  
    INDEXTYPE *d_rowptr, *d_colid;
    VALUETYPE *d_x, *d_y;
    VALUETYPE *d_z; 
@@ -179,20 +186,11 @@ extern void fusedMMcu_csr
    int nblocks = m;
    assert(k%32==0); // k is multiple of 32 threads (warp threads)
    int nthreads = k; 
-#if 0
-   fprintf(stderr, "******* Applying CUDA kernel\n");
-   fprintf(stderr, "Printing parameters :\n");
-   fprintf(stderr, "m, n, k = %d, %d, %d\n", m,n,k);
-   fprintf(stderr, "ldx, ldy, ldz = %d, %d, %d\n", ldx,ldy,ldz);
-   fprintf(stderr, "z ptr = %p\n", z);
-#endif
+/*
+ * beta is equal zero case for now 
+ */
    assert(beta==0.0);
 
-/*
- * allocate in device memory
- *       NOTE, m,n,k is readonly values, don't want to copy it in memory... 
- *             rather use call by values 
- */
 #ifdef DEBUG
 
    // allocate space for all arrays  
@@ -220,7 +218,6 @@ extern void fusedMMcu_csr
    
    checkCudaErrors(cudaMemcpy(d_z, z, (m*ldz)*sizeof(VALUETYPE),
             cudaMemcpyHostToDevice));
-   fprintf(stderr, "---d_z = %p\n", d_z);
 
 #else
    cudaMalloc((void **)&d_rowptr, (m+1)*sizeof(INDEXTYPE));
@@ -244,10 +241,6 @@ extern void fusedMMcu_csr
    
    int shared_mem_size = sizeof(VALUETYPE) * nthreads;
 
-#if 0
-   fprintf(stderr, "nblocks = %d, nthreads=%d, memsize=%d\n", nblocks, nthreads, 
-          shared_mem_size);  
-#endif 
    
    switch(tkern)
    {
@@ -255,9 +248,13 @@ extern void fusedMMcu_csr
          break;
       case 's' :
          // calling the GPU kernel
-         fprintf(stderr, "*********** calling sigmoid function\n");
+         //fprintf(stderr, "*********** calling sigmoid function\n");
          switch(nthreads)
          {
+	    case 1024:
+               sfusedMMcu_sigmoid_a1b0_csr<1024><<<nblocks,nthreads,shared_mem_size>>>
+                  (m, n, k, d_rowptr, d_colid, d_x, d_y, d_z);
+               break;
             case 512:
                sfusedMMcu_sigmoid_a1b0_csr<512><<<nblocks,nthreads,shared_mem_size>>>
                   (m, n, k, d_rowptr, d_colid, d_x, d_y, d_z); 
@@ -299,7 +296,7 @@ extern void fusedMMcu_csr
                   (m, n, k, d_rowptr, d_colid, d_x, d_y, d_z); 
                break;
             default: 
-               fprintf(stderr, "NOT supported for  K=nthreads=%d yet\n", k);
+               fprintf(stderr, "NOT supported for  K=nthreads=%ld yet\n", k);
                break;
          }
          break;
@@ -310,16 +307,21 @@ extern void fusedMMcu_csr
    }
 
 #ifdef DEBUG
-   //fprintf(stderr, "---z ptr = %p, d_z = %p\n", z, d_z);
-   checkCudaErrors(cudaMemcpy(z, d_z, (m*ldz)*sizeof(VALUETYPE),
-            cudaMemcpyDeviceToHost));
+   checkCudaErrors(cudaMemcpy(z, d_z, (m*ldz)*sizeof(VALUETYPE), cudaMemcpyDeviceToHost));
 #else
    cudaMemcpy(z, d_z, (m*ldz)*sizeof(VALUETYPE),cudaMemcpyDeviceToHost);
 #endif
 
-cudaFree(d_rowptr);
-cudaFree(d_colid);
-cudaFree(d_x);
-cudaFree(d_y);
 cudaFree(d_z);
+cudaFree(d_y);
+cudaFree(d_x);
+cudaFree(d_colid);
+cudaFree(d_rowptr);
+
+#ifdef ENABLE_PROFILING
+   // stopping the profiler 
+   cudaProfilerStop();
+   cudaDeviceReset();
+#endif
+
 }

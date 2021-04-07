@@ -755,7 +755,7 @@ void mytest_csr
       case 's' : // sigmoid
       #ifdef CUDA_KERN 
       // only supported for beta = 0.0 for now
-      cout << "beta = " << beta << endl;
+      //cout << "beta = " << beta << endl;
       assert(beta==0.0);
       void fusedMMcu_csr( const char tkern, const INDEXTYPE m, const INDEXTYPE n,
             const INDEXTYPE k, const VALUETYPE alpha, const INDEXTYPE nnz, 
@@ -1728,18 +1728,9 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
    assert(N && M && K);
    if (isTest)
    {
-#if 0
-   #ifdef DREAL
-      nerr = doTesting_Acsr<mytrusted_csr, dgfusedMM_csr>
-                               (S_csr0, M, N, K, alpha, beta, tkern); 
-   #else
-      nerr = doTesting_Acsr<mytrusted_csr, sgfusedMM_csr>
-                               (S_csr0, M, N, K, alpha, beta, tkern); 
-   #endif
-#else // calling general fusedmm 
+      // 1st call 
       nerr = doTesting_Acsr<mytrusted_csr, mytest_csr>
                                (S_csr0, M, N, K, alpha, beta, tkern); 
-#endif
       // error checking 
       if (!nerr)
          fprintf(stdout, "PASSED TEST\n");
@@ -1748,7 +1739,6 @@ void GetSpeedup(string inputfile, int option, INDEXTYPE M,
          fprintf(stdout, "FAILED TEST, %d ELEMENTS\n", nerr);
          exit(1); // test failed, not timed 
       }
-
    }
 /*
  * Now, it's time to add timer 
