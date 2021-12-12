@@ -477,7 +477,7 @@ FP_AOP_FUNC GetAOPFunc(int32_t msg)
       case AOP_UDEF: 
          AOP_FUNC = AOP_UDEF_FUNC;
          break;
-      defautl:
+      default:
          fprintf(stderr, "Unknown AOP Message\n");
          return NULL; 
    }
