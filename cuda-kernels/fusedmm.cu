@@ -16,7 +16,7 @@
  */ 
 #include<cassert>
 #include<cstdio>
-
+#include <omp.h>
 // to profile the code 
 #ifdef ENABLE_PROFILING
    #include <cuda_profiler_api.h>
@@ -173,7 +173,9 @@ extern void fusedMMcu_csr
    const INDEXTYPE ldz     // 2nd dimension size of z (col size since row-major) 
 )
 {
-
+cudaEvent_t startc, stopc;
+cudaEventCreate(&startc);
+cudaEventCreate(&stopc);
 #ifdef ENABLE_PROFILING
    // starting the profiler 
    cudaProfilerStart(); 
@@ -240,8 +242,9 @@ extern void fusedMMcu_csr
 #endif
    
    int shared_mem_size = sizeof(VALUETYPE) * nthreads;
-
-   
+   double start, end;
+   // start = omp_get_wtime();
+   cudaEventRecord(startc);
    switch(tkern)
    {
       case 't' :
@@ -305,7 +308,13 @@ extern void fusedMMcu_csr
       case 'g' :
          break;
    }
-
+   cudaEventRecord(stopc);
+   cudaEventSynchronize(stopc);
+   float milliseconds = 0;
+   cudaEventElapsedTime(&milliseconds, startc, stopc);
+   // end = omp_get_wtime();
+   // fprintf(stderr, "CUDA OMP TIME: %lf seconds\n", end - start); 
+   fprintf(stderr, "CUDA Event TIME: %f seconds\n", milliseconds / 1000.0);
 #ifdef DEBUG
    checkCudaErrors(cudaMemcpy(z, d_z, (m*ldz)*sizeof(VALUETYPE), cudaMemcpyDeviceToHost));
 #else
