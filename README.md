@@ -59,4 +59,4 @@ If you find this repository helpful, please cite the following paper:
 ```
 
 ## Contact
-Please contact the following person if you have any questions: Majedul Haque Sujon (`msujon@iu.edu`) or, Md. Khaledur Rahman (`morahma@iu.edu`).
+Please contact the following person if you have any questions: Ariful Azad (azad@iu.edu), Majedul Haque Sujon (`msujon@iu.edu`) or, Md. Khaledur Rahman (`morahma@iu.edu`).
